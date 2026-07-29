@@ -16,6 +16,8 @@ typedef struct {
     g3d_mesh ground;
     g3d_mesh fence;
     g3d_mesh mountains;
+    g3d_mesh tufts;
+    g3d_mesh clouds;
     g3d_mesh bowl;
     g3d_mesh hay;
     g3d_mesh apple;

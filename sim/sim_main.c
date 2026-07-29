@@ -217,6 +217,7 @@ int main(int argc, char **argv)
         }
     }
 
+    printf("triangulos dibujados en el ultimo cuadro: %d\n", game->ctx.tris_drawn);
     llama_game_destroy(game);
     free(fb.color);
     free(fb.depth);

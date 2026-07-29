@@ -70,10 +70,13 @@ void g3d_sky_gradient(g3d_target *t, g3d_color top, g3d_color bottom, int y0, in
 
 /* -------------------------------------------------------------------- mesh */
 
-typedef struct { uint16_t a, b, c; g3d_color color; } g3d_tri;
+#define G3D_TRI_SMOOTH 0x01u   /* usa las normales por vertice (gouraud) */
+
+typedef struct { uint16_t a, b, c; g3d_color color; uint8_t flags; } g3d_tri;
 
 typedef struct {
     g3d_v3  *v;
+    g3d_v3  *n;      /* normales por vertice (solo para caras suaves) */
     int      nv, cap_v;
     g3d_tri *t;
     int      nt, cap_t;
@@ -86,6 +89,8 @@ int  g3d_mesh_vertex(g3d_mesh *m, g3d_v3 p);
 void g3d_mesh_tri(g3d_mesh *m, int a, int b, int c, g3d_color col);
 void g3d_mesh_quad(g3d_mesh *m, int a, int b, int c, int d, g3d_color col);
 void g3d_mesh_transform(g3d_mesh *m, g3d_mat4 xf);
+/* Igual, pero solo sobre los vertices agregados a partir de `first_v`. */
+void g3d_mesh_transform_from(g3d_mesh *m, int first_v, g3d_mat4 xf);
 
 /* Caja centrada en `c` con semiejes `half`. */
 void g3d_mesh_box(g3d_mesh *m, g3d_v3 c, g3d_v3 half, g3d_color col);
@@ -96,13 +101,38 @@ void g3d_mesh_frustum(g3d_mesh *m, g3d_v3 base, float bw, float bd,
 void g3d_mesh_pyramid(g3d_mesh *m, g3d_v3 base, float bw, float bd, float height,
                       g3d_v3 apex_off, g3d_color col);
 
+/*
+ * Superficie de revolucion alrededor del eje Y: la herramienta principal para
+ * las formas organicas (cuerpo, cuello, cabeza, patas). Cada anillo tiene su
+ * altura, sus dos radios (seccion eliptica) y un desplazamiento del centro,
+ * que permite curvar la pieza. Las caras laterales salen con normales por
+ * vertice, asi que se sombrean suave.
+ *
+ * `a0`/`a1` acotan el arco (usar 0 y 2*PI para una pieza cerrada); con un arco
+ * parcial se obtiene una cascara, util para la manta.
+ */
+typedef struct { float y, rx, rz, cx, cz; } g3d_ring;
+
+#define G3D_CAP_LO 0x01u
+#define G3D_CAP_HI 0x02u
+
+void g3d_mesh_revolve(g3d_mesh *m, const g3d_ring *rings, int nrings, int sides,
+                      float a0, float a1, g3d_color col, unsigned caps);
+
+/* Esfera achatada, construida sobre g3d_mesh_revolve. */
+void g3d_mesh_blob(g3d_mesh *m, g3d_v3 center, float rx, float ry, float rz,
+                   int sides, int stacks, g3d_color col);
+
 /* -------------------------------------------------------------------- draw */
 
 typedef struct {
-    g3d_v3 light_dir; /* direccion HACIA la luz, normalizada */
-    float  ambient;   /* 0..1 */
-    float  diffuse;   /* 0..1 */
-    float  rim;       /* realce en bordes, 0..1 */
+    g3d_v3    light_dir; /* direccion HACIA la luz, normalizada */
+    float     ambient;   /* 0..1 */
+    float     diffuse;   /* 0..1 */
+    float     rim;       /* realce en bordes, 0..1 */
+    g3d_color fog_color; /* color del horizonte */
+    float     fog_start; /* distancia donde empieza la niebla */
+    float     fog_end;   /* distancia donde todo es niebla */
 } g3d_light;
 
 typedef struct {

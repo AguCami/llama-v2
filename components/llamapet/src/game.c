@@ -17,7 +17,7 @@
 #define SKY_DAY_BOT    g3d_rgb(206, 232, 246)
 #define SKY_NIGHT_TOP  g3d_rgb( 12,  16,  46)
 #define SKY_NIGHT_BOT  g3d_rgb( 62,  58, 104)
-#define WOOL_CREAM     g3d_rgb(250, 232, 194)
+#define WOOL_CREAM     g3d_rgb(240, 224, 184)
 #define WOOL_GREY      g3d_rgb(224, 214, 200)
 
 static const char *NAMES[] = {
@@ -586,17 +586,11 @@ static void draw_sky(llama_game *g, g3d_target *t)
         g2d_fill_circle(t, 188, 40, 14, g3d_rgb(238, 238, 220));
         g2d_fill_circle(t, 182, 36, 12, g3d_color_lerp(SKY_NIGHT_TOP, SKY_NIGHT_BOT, 0.35f));
     } else {
-        g2d_fill_circle(t, 196, 36, 15, g3d_rgb(255, 236, 140));
-        g2d_blend_ellipse(t, 196, 36, 21, 21, g3d_rgb(255, 244, 190), 90);
-        /* Nubes. */
-        float k = g->model.t * 4.f;
-        for (int i = 0; i < 3; i++) {
-            int cx = (int)(fmodf(k + i * 90.f, (float)(t->w + 60)) - 30.f);
-            int cy = 46 + i * 17;
-            g2d_blend_ellipse(t, cx, cy, 22, 8, g3d_rgb(255, 255, 255), 200);
-            g2d_blend_ellipse(t, cx + 14, cy + 3, 15, 6, g3d_rgb(255, 255, 255), 200);
-            g2d_blend_ellipse(t, cx - 13, cy + 4, 12, 5, g3d_rgb(255, 255, 255), 200);
-        }
+        /* Sol con halo en tres capas. */
+        g2d_blend_ellipse(t, 196, 40, 34, 34, g3d_rgb(255, 240, 170), 55);
+        g2d_blend_ellipse(t, 196, 40, 22, 22, g3d_rgb(255, 244, 190), 110);
+        g2d_fill_circle(t, 196, 40, 14, g3d_rgb(255, 246, 186));
+        g2d_fill_circle(t, 196, 40, 11, g3d_rgb(255, 252, 224));
     }
 }
 
@@ -631,6 +625,20 @@ static void draw_world_and_pet(llama_game *g, g3d_target *t)
     game_particles_draw(g, t);
 }
 
+/* Viñeteado: unos pocos marcos concentricos alcanzan y salen casi gratis. */
+static void draw_vignette(g3d_target *t)
+{
+    for (int i = 0; i < 14; i++) {
+        uint8_t a = (uint8_t)(26 - i * 2);
+        if (a == 0) break;
+        int x = i * 2, y = i * 2;
+        g2d_blend_rect(t, x, y, t->w - 2 * x, 2, g3d_rgb(0, 0, 0), a);
+        g2d_blend_rect(t, x, t->h - y - 2, t->w - 2 * x, 2, g3d_rgb(0, 0, 0), a);
+        g2d_blend_rect(t, x, y, 2, t->h - 2 * y, g3d_rgb(0, 0, 0), a);
+        g2d_blend_rect(t, t->w - x - 2, y, 2, t->h - 2 * y, g3d_rgb(0, 0, 0), a);
+    }
+}
+
 /* -------------------------------------------------------------- ciclo vida */
 
 llama_game *llama_game_create(int w, int h)
@@ -657,13 +665,16 @@ llama_game *llama_game_create(int w, int h)
         g->screen = SCREEN_BOOT;
     }
 
-    g->ctx.light.light_dir = g3d_v3_norm(g3d_v(-0.45f, 0.82f, 0.36f));
-    g->ctx.light.ambient   = 0.68f;
-    g->ctx.light.diffuse   = 0.40f;
-    g->ctx.light.rim       = 0.08f;
+    g->ctx.light.light_dir = g3d_v3_norm(g3d_v(-0.42f, 0.80f, 0.42f));
+    g->ctx.light.ambient   = 0.56f;
+    g->ctx.light.diffuse   = 0.56f;
+    g->ctx.light.rim       = 0.10f;
+    g->ctx.light.fog_color = SKY_DAY_BOT;
+    g->ctx.light.fog_start = 11.f;
+    g->ctx.light.fog_end   = 62.f;
 
     g->cam_yaw      = 0.f;
-    g->cam_dist     = 6.1f;
+    g->cam_dist     = 5.3f;
     g->cam_height   = 1.85f;
     g->cam_target_y = 0.98f;
     g->pressed_btn  = -1;
@@ -715,6 +726,7 @@ void llama_game_frame(llama_game *g, const llama_input *in, float dt, g3d_target
     int hour = (int)(fmod(now / 3600.0, 24.0));
     float target_night = (hour >= 21 || hour < 7) ? 1.f : 0.f;
     g->night = approach(g->night, target_night, 0.35f, dt);
+    g->ctx.light.fog_color = g3d_color_lerp(SKY_DAY_BOT, SKY_NIGHT_BOT, g->night);
 
     handle_input(g, in, fb, dt);
     handle_imu(g, in, dt);
@@ -749,9 +761,11 @@ void llama_game_frame(llama_game *g, const llama_input *in, float dt, g3d_target
 
     if (g->screen == SCREEN_MINIGAME) {
         minigame_draw(g, fb);
+        draw_vignette(fb);
         ui_draw_minigame(g, fb);
     } else {
         draw_world_and_pet(g, fb);
+        draw_vignette(fb);
         if (g->flash > 0.f) {
             g2d_blend_rect(fb, 0, 0, fb->w, fb->h, g3d_rgb(255, 255, 255),
                            (uint8_t)(g->flash * 120.f));
