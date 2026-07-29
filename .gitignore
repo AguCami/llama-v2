@@ -1,0 +1,15 @@
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# simulador
+sim/build/
+*.ppm
+
+# editores
+.vscode/
+.idea/
+*.swp
