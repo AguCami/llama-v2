@@ -20,6 +20,8 @@ mismo código que la placa.
 
 - **Llama 3D animada**: camina, come, salta, duerme en postura *kush*, se
   enferma, parpadea, mueve las orejas y **escupe** si la querés sobrealimentar.
+  El cuerpo, el cuello, la cabeza y las patas son superficies de revolución con
+  sombreado suave, no cajas: 14 piezas articuladas por una jerarquía de huesos.
 - **Necesidades reales**: hambre, ánimo, energía, higiene y salud bajan con el
   tiempo, incluso con el equipo apagado (se recupera con el RTC al encender).
 - **Ciclo de vida**: cría → joven → adulta → anciana. Cambian el tamaño, las
@@ -81,7 +83,8 @@ Escenas disponibles: `boot`, `main`, `turn`, `food`, `stats`, `minigame`,
 
 ```
 components/g3d/          motor 3D + dibujo 2D (portable, sin ESP-IDF)
-  include/g3d.h            matemática, mallas, rasterizador con z-buffer
+  include/g3d.h            matemática, mallas, rasterizador con z-buffer,
+                           sombreado suave y niebla de distancia
   include/g2d.h            primitivas 2D, fuente 5x7 con acentos y ñ
 components/llamapet/     el juego (portable)
   src/pet.c                simulación de necesidades y ciclo de vida
@@ -108,9 +111,9 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 - Framebuffer RGB565: 240 × 284 × 2 = **133 KB** en PSRAM.
 - Z-buffer (float, guarda 1/w): **266 KB** en PSRAM.
 - Buffers DMA de volcado: 2 × 19 KB en RAM interna.
-- Geometría típica por cuadro: ~450 triángulos (llama ~230, escenario ~220).
+- Geometría típica por cuadro: **~1.070 triángulos** (llama ~920, escenario el resto).
 - El bucle principal se limita a ~30 fps a propósito, para cuidar la batería.
-- Medición de referencia: **0.62 ms por cuadro** (lógica + render completo) en
+- Medición de referencia: **1.14 ms por cuadro** (lógica + render completo) en
   x86-64 con `-O2`. El ESP32-S3 es bastante más lento; el número de la placa
   todavía no está medido (ver limitaciones).
 
@@ -132,6 +135,11 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 ## Créditos de arte
 
 El diseño de la llama se guió por una referencia generada con Higgsfield (imagen
-y malla GLB); ver [`docs/assets.md`](docs/assets.md). La geometría que corre en
-la placa está modelada a mano con primitivas para entrar en el presupuesto de
-triángulos del ESP32-S3.
+y malla GLB); ver [`docs/assets.md`](docs/assets.md). De esa referencia salieron
+la paleta y, sobre todo, las proporciones: cuerpo redondo, patas cortas, cuello
+grueso, hocico gris y manta andina tejida.
+
+En `assets/ref/llama_lowpoly.bin` está la malla original de Higgsfield soldada y
+decimada de 29.519 a 758 triángulos, para poder compararla contra el modelo
+procedural. La geometría que corre en la placa sigue siendo la procedural, que a
+este presupuesto se ve bastante mejor que la reconstrucción decimada.
