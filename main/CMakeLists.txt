@@ -8,5 +8,6 @@ idf_component_register(
          "bsp_power.c"
     INCLUDE_DIRS "."
     EMBED_FILES "../assets/llama_sprites.bin" "../assets/pano.bin"
+                "../assets/ground.bin"
     REQUIRES g3d llamapet driver esp_lcd esp_timer nvs_flash esp_driver_gpio
              esp_driver_spi esp_driver_ledc esp_driver_i2c esp_hw_support)

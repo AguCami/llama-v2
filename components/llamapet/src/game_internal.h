@@ -10,6 +10,7 @@
 #include "g2d.h"
 #include "g3d_sprite.h"
 #include "g3d_pano.h"
+#include "g3d_ground.h"
 #include "llama_ambient.h"
 
 /* --------------------------------------------------------------- pantalla */
@@ -109,6 +110,8 @@ struct llama_game {
     /* Fondo panoramico por estacion (ver g3d_pano.h) y ambiente del momento. */
     g3d_pano_set   pano;
     bool           use_pano;
+    g3d_ground_set ground;
+    bool           use_ground;
     llama_ambient  amb;
     float          weather_timer;
     int            weather_season;   /* estacion del clima que ya esta en el aire */

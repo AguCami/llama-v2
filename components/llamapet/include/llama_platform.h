@@ -43,6 +43,10 @@ const void *llama_plat_sprites(size_t *len);
  * y el juego dibuja el degradado de cielo de siempre. */
 const void *llama_plat_pano(size_t *len);
 
+/* Baldosas del piso por estacion (las genera tools/mkground.py). NULL = sin
+ * textura, y el piso vuelve a ser la malla de anillos de colores. */
+const void *llama_plat_ground(size_t *len);
+
 #ifdef __cplusplus
 }
 #endif

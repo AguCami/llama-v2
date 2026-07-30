@@ -304,6 +304,7 @@ bool llama_scene_init(llama_scene *s)
     build_rock(&s->rock);
     s->season = SEASON_VERANO;
     s->backdrop_3d = true;
+    s->ground_3d   = true;
     s->ok = true;
     return true;
 }
@@ -357,7 +358,7 @@ void llama_scene_draw_world(g3d_target *t, const g3d_ctx *ctx, const llama_scene
         g3d_draw_mesh(t, &sky_ctx, &s->clouds, &id, tint * (1.f - night * 0.25f));
         g3d_draw_mesh(t, ctx, &s->mountains, &id, tint * 0.95f);
     }
-    g3d_draw_mesh(t, ctx, &s->ground, &id, tint);
+    if (s->ground_3d) g3d_draw_mesh(t, ctx, &s->ground, &id, tint);
     g3d_draw_mesh(t, ctx, &s->tufts, &id, tint);
     g3d_draw_mesh(t, ctx, &s->fence, &id, tint);
 }

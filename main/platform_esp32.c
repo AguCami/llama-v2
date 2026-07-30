@@ -96,3 +96,13 @@ const void *llama_plat_pano(size_t *len)
     if (len) *len = n;
     return n > 32 ? llama_pano_start : NULL;
 }
+
+extern const uint8_t llama_ground_start[] asm("_binary_ground_bin_start");
+extern const uint8_t llama_ground_end[]   asm("_binary_ground_bin_end");
+
+const void *llama_plat_ground(size_t *len)
+{
+    size_t n = (size_t)(llama_ground_end - llama_ground_start);
+    if (len) *len = n;
+    return n > 32 ? llama_ground_start : NULL;
+}

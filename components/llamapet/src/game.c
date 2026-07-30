@@ -767,6 +767,13 @@ static void draw_sky(llama_game *g, g3d_target *t)
         g3d_sky_gradient(t, g->amb.sky_top, g->amb.sky_bottom, 0, t->h);
     }
 
+    if (g->use_ground) {
+        /* El piso empieza solo en su horizonte geometrico; el tinte va mas
+         * suave que en el panorama, igual que el resto del mundo 3D. */
+        g3d_ground_draw(t, &g->ctx, &g->ground, (int)g->amb.season, 0,
+                        g->amb.shade, g->ctx.light.tint_color, g->ctx.light.tint_a);
+    }
+
     /* Con lluvia el cielo esta cubierto: el sol y las estrellas se apagan. */
     const float clear = 1.f - g->rain;
     if (clear <= 0.05f) return;
@@ -919,6 +926,14 @@ llama_game *llama_game_create(int w, int h)
         g->use_pano = true;
         /* Con panorama, la cordillera y las nubes 3D estarian de mas. */
         g->scene.backdrop_3d = false;
+    }
+
+    size_t ground_len = 0;
+    const void *ground_blob = llama_plat_ground(&ground_len);
+    if (ground_blob && g3d_ground_open(&g->ground, ground_blob, ground_len)) {
+        g->use_ground = true;
+        /* Con piso texturizado, la malla de anillos queda de mas. */
+        g->scene.ground_3d = false;
     }
 
     g->cam_yaw      = 0.f;

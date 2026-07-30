@@ -103,6 +103,33 @@ const void *llama_plat_pano(size_t *len)
     return g_pano;
 }
 
+/* Baldosas del piso: mismo criterio. */
+static void *g_ground;
+static size_t g_ground_len;
+
+const void *llama_plat_ground(size_t *len)
+{
+    if (!g_ground) {
+        const char *path = getenv("LLAMA_GROUND");
+        if (!path) path = "../assets/ground.bin";
+        FILE *f = fopen(path, "rb");
+        if (!f) return NULL;
+        fseek(f, 0, SEEK_END);
+        long n = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        g_ground = malloc((size_t)n);
+        if (g_ground && fread(g_ground, 1, (size_t)n, f) == (size_t)n) {
+            g_ground_len = (size_t)n;
+        } else {
+            free(g_ground);
+            g_ground = NULL;
+        }
+        fclose(f);
+    }
+    if (len) *len = g_ground_len;
+    return g_ground;
+}
+
 /* ------------------------------------------------------------------ salida */
 
 static void write_ppm(const char *path, const g3d_target *fb)
