@@ -179,6 +179,13 @@ struct llama_game {
     minigame_state mg;
 };
 
+/* ------------------------------------------------------------------ iconos */
+
+enum {
+    ICON_FOOD = 0, ICON_HAPPY, ICON_ENERGY, ICON_CLEAN, ICON_HEALTH,
+    ICON_MOON, ICON_SUN, ICON_BALL, ICON_COIN, ICON_SCISSORS, ICON_WOOL
+};
+
 /* ----------------------------------------------------------------- helpers */
 
 void  game_toast(llama_game *g, const char *msg);

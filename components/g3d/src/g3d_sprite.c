@@ -74,10 +74,10 @@ int g3d_sprite_angle_index(const g3d_sprite_set *s, float radians)
 }
 
 void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose,
-                     float ax, float ay, float scale, float invw, float tint,
-                     g3d_color tint_b, uint8_t tint_a)
+                     float ax, float ay, float scale, float scale_y, float shear,
+                     float invw, float tint, g3d_color tint_b, uint8_t tint_a)
 {
-    if (!s->blob || scale <= 0.f) return;
+    if (!s->blob || scale <= 0.f || scale_y <= 0.f) return;
 
     const uint8_t *e = entry_of(s, angle, pose);
     const int   ox = rds16(e + 0), oy = rds16(e + 2);
@@ -92,39 +92,49 @@ void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose
     const uint8_t *cdata = s->blob + off;
     const uint8_t *adata = cdata + color_bytes;
 
-    /* Rectangulo de destino. */
+    /* Rectangulo de destino. El anclaje esta entre las patas, asi que escalar
+     * en Y alrededor de el deja los pies plantados en el piso. */
     const int dx0 = (int)(ax + (float)ox * scale + 0.5f);
-    const int dy0 = (int)(ay + (float)oy * scale + 0.5f);
-    int dw = (int)((float)sw * scale + 0.5f);
-    int dh = (int)((float)sh * scale + 0.5f);
+    const int dy0 = (int)(ay + (float)oy * scale * scale_y + 0.5f);
+    const int dw = (int)((float)sw * scale + 0.5f);
+    const int dh = (int)((float)sh * scale * scale_y + 0.5f);
     if (dw <= 0 || dh <= 0) return;
 
     /* Paso en el origen, en 16.16. */
     const uint32_t step_x = (uint32_t)(((int64_t)sw << 16) / dw);
     const uint32_t step_y = (uint32_t)(((int64_t)sh << 16) / dh);
 
-    int cx0 = dx0, cy0 = dy0;
-    uint32_t src_x0 = 0, src_y0 = 0;
-    if (cx0 < 0) { src_x0 = (uint32_t)(-cx0) * step_x; dw += cx0; cx0 = 0; }
-    if (cy0 < 0) { src_y0 = (uint32_t)(-cy0) * step_y; dh += cy0; cy0 = 0; }
-    if (cx0 + dw > t->w) dw = t->w - cx0;
-    if (cy0 + dh > t->h) dh = t->h - cy0;
-    if (dw <= 0 || dh <= 0) return;
+    int cy0 = dy0, ch = dh;
+    uint32_t src_y0 = 0;
+    if (cy0 < 0) { src_y0 = (uint32_t)(-cy0) * step_y; ch += cy0; cy0 = 0; }
+    if (cy0 + ch > t->h) ch = t->h - cy0;
+    if (ch <= 0) return;
 
     const bool shaded = (tint < 0.995f || tint > 1.005f);
     const bool tinted = (tint_a > 0);
     const float ta = tint_a / 255.f;
+    const float shear_px = shear * (float)dh;
     uint32_t sy = src_y0;
 
-    for (int y = 0; y < dh; y++) {
+    for (int y = 0; y < ch; y++) {
         const uint32_t row = (sy >> 16) < (uint32_t)sh ? (sy >> 16) : (uint32_t)(sh - 1);
         const uint8_t *crow = cdata + (size_t)row * sw * 2;
         const size_t   abase = (size_t)row * sw;
-        g3d_color *dst = t->color + (size_t)(cy0 + y) * t->w + cx0;
-        float     *dep = t->depth + (size_t)(cy0 + y) * t->w + cx0;
+        sy += step_y;
 
-        uint32_t sx = src_x0;
-        for (int x = 0; x < dw; x++) {
+        /* La cizalla corre la fila entera: maxima arriba, nula en los pies. */
+        const int full_y = cy0 + y - dy0;
+        int rx0 = dx0 + (int)(shear_px * (float)(dh - 1 - full_y) / (float)dh);
+        int rw = dw;
+        uint32_t sx = 0;
+        if (rx0 < 0) { sx = (uint32_t)(-rx0) * step_x; rw += rx0; rx0 = 0; }
+        if (rx0 + rw > t->w) rw = t->w - rx0;
+        if (rw <= 0) continue;
+
+        g3d_color *dst = t->color + (size_t)(cy0 + y) * t->w + rx0;
+        float     *dep = t->depth + (size_t)(cy0 + y) * t->w + rx0;
+
+        for (int x = 0; x < rw; x++) {
             const uint32_t col = (sx >> 16) < (uint32_t)sw ? (sx >> 16) : (uint32_t)(sw - 1);
             const size_t   ai = abase + col;
             const uint8_t  nib = adata[ai >> 1];
@@ -145,6 +155,5 @@ void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose
                 if (a >= 8) dep[x] = invw;
             }
         }
-        sy += step_y;
     }
 }

@@ -22,11 +22,6 @@
 #define C_COIN       g3d_rgb(248, 206,  70)
 #define C_ACCENT     g3d_rgb(236, 128,  92)
 
-enum {
-    ICON_FOOD = 0, ICON_HAPPY, ICON_ENERGY, ICON_CLEAN, ICON_HEALTH,
-    ICON_MOON, ICON_SUN, ICON_BALL, ICON_COIN, ICON_SCISSORS, ICON_WOOL
-};
-
 /* ------------------------------------------------------------------ iconos */
 
 void ui_draw_icon(g3d_target *t, int kind, int cx, int cy, int s, g3d_color col)

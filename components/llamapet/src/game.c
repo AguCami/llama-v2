@@ -469,7 +469,7 @@ static void do_feed(llama_game *g, llama_food food)
     switch (r) {
     case LLAMA_ACT_OK: {
         char msg[48];
-        snprintf(msg, sizeof(msg), "%s servido", llama_food_name(food));
+        snprintf(msg, sizeof(msg), "%s en el comedero", llama_food_name(food));
         game_toast(g, msg);
         g->bowl_food  = (int)food;
         g->bowl_timer = 25.f;
@@ -826,10 +826,108 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
     int angle = g3d_sprite_angle_index(&g->sprites, m->heading - g->cam_yaw);
     float scale = m->scale * pscale / g->sprite_ref_scale;
 
+    /*
+     * Animacion de titere: el sprite es una sola pose, asi que toda la vida
+     * sale de aplastarlo, estirarlo e inclinarlo. La escala vertical pivota en
+     * los pies y la cizalla mueve el lomo, y con eso el trote, el mordisco y
+     * el suenio se leen aunque la foto sea siempre la misma.
+     */
+    float sy_s = 1.f, sx_s = 1.f, shear = 0.f;
+    switch (m->anim) {
+    case LA_IDLE:
+        sy_s = 1.f + 0.013f * sinf(m->t * 1.7f);            /* respira */
+        break;
+    case LA_WALK: {
+        float ph = m->anim_t * 8.5f;
+        sy_s = 1.f + 0.045f * sinf(ph);
+        sx_s = 1.f - 0.030f * sinf(ph);
+        shear = 0.035f * sinf(ph * 0.5f);                    /* balanceo del paso */
+        break;
+    }
+    case LA_EAT: {
+        /* Se agacha al comedero y pega mordiscos ritmicos. */
+        float bite = 0.5f - 0.5f * cosf(m->anim_t * 6.2f);
+        sy_s = 0.94f - 0.22f * bite;
+        sx_s = 1.f + 0.07f * bite;
+        float bsx;
+        if (g3d_project(t, &g->ctx, g3d_v(0.f, 0.f, 2.05f), &bsx, NULL, NULL)) {
+            shear = (bsx > sx ? 1.f : -1.f) * 0.10f * bite;  /* hacia el comedero */
+        }
+        break;
+    }
+    case LA_SLEEP:
+        sy_s = 0.60f + 0.018f * sinf(m->t * 1.3f);           /* echada, respirando */
+        sx_s = 1.14f;
+        break;
+    case LA_HAPPY: {
+        float ph = m->anim_t * 8.f;
+        float hop = sinf(ph) > 0.f ? sinf(ph) : 0.f;
+        sy_s = 1.f + 0.14f * hop - 0.06f * (hop <= 0.01f);   /* estira al saltar */
+        sx_s = 1.f - 0.08f * hop + 0.05f * (hop <= 0.01f);   /* aplasta al caer */
+        break;
+    }
+    case LA_SICK:
+        sy_s = 0.93f + 0.01f * sinf(m->t * 1.1f);
+        shear = 0.045f;                                      /* caida, sin fuerza */
+        break;
+    case LA_SPIT: {
+        float ph = m->anim_t * 9.f;
+        shear = ph < 1.6f ? -0.09f * sinf(ph * 1.9f) : 0.14f * sinf((ph - 1.6f) * 2.6f);
+        sy_s = 1.f + 0.05f * sinf(ph * 2.f);
+        break;
+    }
+    case LA_SHEAR:
+        shear = 0.05f * sinf(m->anim_t * 16.f);              /* se sacude */
+        sy_s = 1.f + 0.02f * sinf(m->anim_t * 16.f);
+        break;
+    case LA_DEAD:
+        sy_s = 0.42f;
+        sx_s = 1.28f;
+        break;
+    default:
+        break;
+    }
+
     /* Profundidad del plano que pasa por el centro del bicho. */
     float invw = pscale / (g->sprite_ref_scale * g->cam_dist);
-    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale, invw, tint,
-                    g->ctx.light.tint_color, g->ctx.light.tint_a);
+    /* scale_y es relativa a la escala en X, asi que se compensa sx_s. */
+    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale * sx_s, sy_s / sx_s,
+                    shear, invw, tint, g->ctx.light.tint_color, g->ctx.light.tint_a);
+}
+
+/*
+ * Burbuja de pensamiento sobre la cabeza: muestra la necesidad mas urgente,
+ * asi se entiende que pedirle al bicho sin mirar las barras. Parpadea para no
+ * quedarse pegada a la escena.
+ */
+static void draw_need_bubble(llama_game *g, g3d_target *t)
+{
+    const llama_pet *p = &g->pet;
+    if (llama_pet_dead(p) || llama_pet_sleeping(p) || g->action_timer > 0.f) return;
+
+    int icon = -1;
+    g3d_color col = g3d_rgb(90, 80, 70);
+    if      (llama_pet_sick(p))     { icon = ICON_HEALTH; col = g3d_rgb(216, 76, 66); }
+    else if (p->hunger < 38.f)      { icon = ICON_FOOD;   col = g3d_rgb(196, 148, 60); }
+    else if (p->energy < 30.f)      { icon = ICON_MOON;   col = g3d_rgb(96, 92, 160); }
+    else if (p->hygiene < 35.f)     { icon = ICON_CLEAN;  col = g3d_rgb(72, 138, 208); }
+    else if (p->happiness < 30.f)   { icon = ICON_BALL;   col = g3d_rgb(222, 96, 120); }
+    if (icon < 0) return;
+
+    if (fmodf(g->model.t, 3.6f) > 2.55f) return;   /* respiro entre parpadeos */
+
+    float hx, hy, hs;
+    if (!g3d_project(t, &g->ctx, llama_model_head_pos(&g->model), &hx, &hy, &hs)) return;
+    int bx = (int)hx + 16, by = (int)hy - 22;
+    if (bx < 16) bx = 16;
+    if (bx > t->w - 18) bx = t->w - 18;
+    if (by < 52) by = 52;
+
+    const g3d_color blanco = g3d_rgb(252, 250, 244);
+    g2d_fill_circle(t, bx - 11, by + 12, 2, blanco);   /* colita de la burbuja */
+    g2d_fill_circle(t, bx - 7, by + 8, 3, blanco);
+    g2d_blend_ellipse(t, bx, by, 13, 11, blanco, 235);
+    ui_draw_icon(t, icon, bx, by, 8, col);
 }
 
 static void draw_world_and_pet(llama_game *g, g3d_target *t)
@@ -860,6 +958,7 @@ static void draw_world_and_pet(llama_game *g, g3d_target *t)
     float tint = 1.f - night * 0.35f;
     if (llama_pet_sick(&g->pet)) tint *= 0.85f;
     game_draw_llama(g, t, tint);
+    draw_need_bubble(g, t);
     game_particles_draw(g, t);
 }
 
