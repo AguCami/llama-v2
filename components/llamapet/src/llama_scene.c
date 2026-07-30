@@ -29,6 +29,38 @@
 #define COL_CLOUD    g3d_rgb(252, 252, 255)
 #define COL_CLOUD_D  g3d_rgb(226, 233, 244)
 
+/* Paleta del piso por estacion: tres verdes/tonos para el damero suave, el
+ * color del pasto lejano, el del camino y el de las matas. */
+typedef struct {
+    g3d_color a, b, c, far, dirt, tuft, tuft_d;
+} season_palette;
+
+/* Version macro de g3d_rgb: hace falta una expresion constante para poder
+ * inicializar el arreglo estatico. */
+#define C565(r, g, b) \
+    ((g3d_color)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3)))
+
+static const season_palette PALETTE[SEASON_COUNT] = {
+    /* verano */
+    { C565( 96,168, 78), C565( 90,160, 74), C565( 84,152, 70),
+      C565( 74,140, 64), C565(168,138, 94),
+      C565( 74,148, 62), C565( 62,130, 54) },
+    /* otonio */
+    { C565(186,148, 76), C565(176,138, 68), C565(164,126, 62),
+      C565(150,114, 58), C565(158,120, 80),
+      C565(158,116, 52), C565(136, 98, 46) },
+    /* invierno */
+    { C565(232,238,246), C565(222,230,242), C565(212,222,238),
+      C565(202,214,234), C565(196,198,204),
+      C565(180,196,214), C565(160,178,200) },
+    /* primavera */
+    { C565(112,186, 84), C565(104,176, 78), C565( 96,166, 74),
+      C565( 86,154, 68), C565(172,144,100),
+      C565( 88,168, 66), C565(112,180, 74) },
+};
+
+static const season_palette *g_pal = &PALETTE[SEASON_VERANO];
+
 static const float POOP_XY[LLAMA_POOP_SPOTS][2] = {
     { -1.35f,  0.85f }, { 1.45f, 0.35f }, { -0.75f, -1.55f },
     {  1.05f, -1.35f }, { 0.15f,  1.75f },
@@ -50,8 +82,8 @@ static void build_ground(g3d_mesh *m)
         for (int j = 0; j < N; j++) {
             float x0 = -S + i * step, x1 = x0 + step;
             float z0 = -S + j * step, z1 = z0 + step;
-            g3d_color c = ((i * 3 + j * 5) % 3 == 0) ? COL_GRASS_A
-                        : (((i + j) & 1) ? COL_GRASS_B : COL_GRASS_C);
+            g3d_color c = ((i * 3 + j * 5) % 3 == 0) ? g_pal->a
+                        : (((i + j) & 1) ? g_pal->b : g_pal->c);
             int a = g3d_mesh_vertex(m, g3d_v(x0, 0.f, z0));
             int b = g3d_mesh_vertex(m, g3d_v(x1, 0.f, z0));
             int c2 = g3d_mesh_vertex(m, g3d_v(x1, 0.f, z1));
@@ -64,8 +96,8 @@ static void build_ground(g3d_mesh *m)
      * degrada parejo en vez de cortarse de golpe. */
     const float RING_R[5] = { 6.4f, 9.0f, 13.f, 19.f, 34.f };
     const g3d_color RING_C[4] = {
-        g3d_rgb(82, 152, 68), g3d_rgb(78, 146, 66),
-        g3d_rgb(74, 140, 64), g3d_rgb(72, 136, 62),
+        g3d_color_shade(g_pal->far, 1.10f), g3d_color_shade(g_pal->far, 1.04f),
+        g_pal->far, g3d_color_shade(g_pal->far, 0.96f),
     };
     for (int r = 0; r < 4; r++) {
         const float r0 = RING_R[r], r1 = RING_R[r + 1];
@@ -78,6 +110,7 @@ static void build_ground(g3d_mesh *m)
             int p2 = g3d_mesh_vertex(m, g3d_v(c1 * r1, -0.02f, s1 * r1));
             int p3 = g3d_mesh_vertex(m, g3d_v(c0 * r1, -0.02f, s0 * r1));
             g3d_color c = RING_C[r];
+            c = g3d_color_lerp(g_pal->far, c, 0.f);
             if ((seg + r) % 3 == 0) c = g3d_color_shade(c, 1.06f);
             g3d_mesh_quad(m, p0, p3, p2, p1, c);
         }
@@ -88,7 +121,7 @@ static void build_ground(g3d_mesh *m)
     int b = g3d_mesh_vertex(m, g3d_v( 0.55f, 0.01f, 1.10f));
     int c = g3d_mesh_vertex(m, g3d_v( 0.75f, 0.01f, 2.60f));
     int d = g3d_mesh_vertex(m, g3d_v(-0.75f, 0.01f, 2.60f));
-    g3d_mesh_quad(m, a, d, c, b, COL_DIRT);
+    g3d_mesh_quad(m, a, d, c, b, g_pal->dirt);
 }
 
 static void build_fence(g3d_mesh *m)
@@ -158,9 +191,9 @@ static void build_tufts(g3d_mesh *m)
         float x = SPOT[i][0], z = SPOT[i][1];
         float h = 0.18f + (float)((i * 7) % 4) * 0.05f;
         g3d_mesh_pyramid(m, g3d_v(x, 0.f, z), 0.16f, 0.14f, h,
-                         g3d_v(0.03f, 0.f, 0.02f), COL_TUFT);
+                         g3d_v(0.03f, 0.f, 0.02f), g_pal->tuft);
         g3d_mesh_pyramid(m, g3d_v(x + 0.11f, 0.f, z + 0.07f), 0.12f, 0.11f, h * 0.75f,
-                         g3d_v(-0.03f, 0.f, 0.02f), COL_TUFT_D);
+                         g3d_v(-0.03f, 0.f, 0.02f), g_pal->tuft_d);
     }
 }
 
@@ -270,8 +303,22 @@ bool llama_scene_init(llama_scene *s)
     build_poop(&s->poop);
     build_grave(&s->grave);
     build_rock(&s->rock);
+    s->season = SEASON_VERANO;
     s->ok = true;
     return true;
+}
+
+void llama_scene_set_season(llama_scene *s, llama_season season)
+{
+    if (!s->ok) return;
+    if (season < 0 || season >= SEASON_COUNT) season = SEASON_VERANO;
+    if (s->season == season) return;
+    s->season = season;
+    g_pal = &PALETTE[season];
+    g3d_mesh_reset(&s->ground);
+    g3d_mesh_reset(&s->tufts);
+    build_ground(&s->ground);
+    build_tufts(&s->tufts);
 }
 
 void llama_scene_free(llama_scene *s)

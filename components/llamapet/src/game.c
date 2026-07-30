@@ -92,6 +92,21 @@ void game_emit(llama_game *g, particle_kind kind, g3d_v3 pos, int count)
             p->vel = g3d_v((llama_randf() - 0.5f) * 0.5f, 1.5f, 0.f);
             p->life = p->life0 = 1.2f;
             break;
+        case PT_SNOW:
+            p->vel = g3d_v((llama_randf() - 0.5f) * 0.35f, -0.55f - llama_randf() * 0.3f,
+                           (llama_randf() - 0.5f) * 0.2f);
+            p->life = p->life0 = 6.f;
+            break;
+        case PT_LEAF:
+            p->vel = g3d_v(0.5f + llama_randf() * 0.6f, -0.75f - llama_randf() * 0.35f,
+                           (llama_randf() - 0.5f) * 0.3f);
+            p->life = p->life0 = 5.f;
+            break;
+        case PT_PETAL:
+            p->vel = g3d_v(0.35f + llama_randf() * 0.4f, -0.45f - llama_randf() * 0.25f,
+                           (llama_randf() - 0.5f) * 0.3f);
+            p->life = p->life0 = 6.f;
+            break;
         default:
             p->vel = g3d_v(0.f, 0.6f, 0.f);
             p->life = p->life0 = 1.3f;
@@ -110,6 +125,10 @@ void game_particles_update(llama_game *g, float dt)
         p->pos = g3d_v3_add(p->pos, g3d_v3_mul(p->vel, dt));
         if (p->kind == PT_SPIT || p->kind == PT_CRUMB || p->kind == PT_COIN) {
             p->vel.y -= 4.2f * dt;   /* gravedad */
+        } else if (p->kind == PT_SNOW || p->kind == PT_LEAF || p->kind == PT_PETAL) {
+            /* Caida con vaiven lateral; se apagan al tocar el piso. */
+            p->vel.x += sinf(p->life * 3.1f + p->pos.z) * 0.6f * dt;
+            if (p->pos.y <= 0.03f) p->used = false;
         } else {
             p->vel.y *= (1.f - 0.6f * dt);
         }
@@ -160,6 +179,21 @@ static void draw_particle_icon(g3d_target *t, int kind, int x, int y, int s, flo
         g2d_fill_circle(t, x, y, s, g3d_rgb(248, 206, 70));
         g2d_circle(t, x, y, s, g3d_rgb(190, 146, 30));
         break;
+    case PT_SNOW: {
+        int r = s > 3 ? 2 : 1;
+        g2d_fill_circle(t, x, y, r, g3d_rgb(250, 252, 255));
+        break;
+    }
+    case PT_LEAF: {
+        g3d_color c = (((int)(x + y)) & 1) ? g3d_rgb(206, 126, 48)
+                                          : g3d_rgb(176, 92, 40);
+        g2d_fill_ellipse(t, x, y, s > 3 ? 3 : 2, s > 3 ? 2 : 1, c);
+        break;
+    }
+    case PT_PETAL:
+        g2d_fill_ellipse(t, x, y, s > 3 ? 2 : 1, s > 3 ? 3 : 2,
+                         g3d_rgb(250, 214, 228));
+        break;
     default:
         g2d_fill_circle(t, x, y, s, g3d_rgb(255, 255, 255));
         break;
@@ -176,6 +210,41 @@ void game_particles_draw(llama_game *g, g3d_target *t)
         float fade = p->life / p->life0;
         int size = (int)(0.09f * scale * p->size);
         draw_particle_icon(t, p->kind, (int)sx, (int)sy, size, fade);
+    }
+}
+
+/* ----------------------------------------------------------------- clima */
+
+/* Nieve, hojas o petalos segun la estacion. Se limita la cantidad para no
+ * quedarse con todas las ranuras de particulas y tapar corazones y Zzz. */
+static void weather_update(llama_game *g, float dt)
+{
+    int kind, budget;
+    float per_second;
+    switch (g->amb.season) {
+    case SEASON_INVIERNO:  kind = PT_SNOW;  per_second = 7.f;  budget = 18; break;
+    case SEASON_OTONIO:    kind = PT_LEAF;  per_second = 2.6f; budget = 10; break;
+    case SEASON_PRIMAVERA: kind = PT_PETAL; per_second = 1.8f; budget = 8;  break;
+    default: return;                          /* en verano el cielo esta limpio */
+    }
+
+    int active = 0;
+    for (int i = 0; i < MAX_PARTICLES; i++) {
+        const particle *p = &g->particles[i];
+        if (p->used && (p->kind == PT_SNOW || p->kind == PT_LEAF || p->kind == PT_PETAL)) {
+            active++;
+        }
+    }
+    if (active >= budget) return;
+
+    g->weather_timer += dt * per_second;
+    while (g->weather_timer >= 1.f && active < budget) {
+        g->weather_timer -= 1.f;
+        g3d_v3 at = g3d_v(g->model.pos.x + (llama_randf() - 0.5f) * 7.f,
+                          3.2f + llama_randf() * 1.2f,
+                          g->model.pos.z + (llama_randf() - 0.5f) * 6.f);
+        game_emit(g, (particle_kind)kind, at, 1);
+        active++;
     }
 }
 
@@ -567,11 +636,32 @@ static void handle_imu(llama_game *g, const llama_input *in, float dt)
 
 /* ------------------------------------------------------------------ render */
 
+/* Fila de pantalla donde cae el horizonte: es donde se proyecta un punto
+ * infinitamente lejano a la altura del ojo. */
+static int horizon_row(llama_game *g, g3d_target *t)
+{
+    g3d_v3 eye = g->ctx.eye;
+    g3d_v3 fwd = g3d_v3_sub(g3d_v(g->model.pos.x * 0.5f, g->cam_target_y,
+                                  g->model.pos.z * 0.5f), eye);
+    fwd.y = 0.f;
+    fwd = g3d_v3_norm(fwd);
+    g3d_v3 far_pt = g3d_v3_add(eye, g3d_v3_mul(fwd, 4000.f));
+    far_pt.y = eye.y;
+    float sy = (float)(t->h / 2);
+    g3d_project(t, &g->ctx, far_pt, NULL, &sy, NULL);
+    return (int)(sy + 0.5f);
+}
+
 static void draw_sky(llama_game *g, g3d_target *t)
 {
-    g3d_color top = g3d_color_lerp(SKY_DAY_TOP, SKY_NIGHT_TOP, g->night);
-    g3d_color bot = g3d_color_lerp(SKY_DAY_BOT, SKY_NIGHT_BOT, g->night);
-    g3d_sky_gradient(t, top, bot, 0, t->h);
+    if (g->use_pano) {
+        /* El paisaje lejano ya trae cielo y cordillera; el color de ambiente le
+         * pone la hora del dia. */
+        g3d_pano_draw(t, &g->pano, (int)g->amb.season, g->cam_yaw,
+                      horizon_row(g, t), g->amb.shade, g->amb.tint, g->amb.tint_a);
+    } else {
+        g3d_sky_gradient(t, g->amb.sky_top, g->amb.sky_bottom, 0, t->h);
+    }
 
     if (g->night > 0.5f) {
         /* Estrellas deterministas. */
@@ -712,6 +802,12 @@ llama_game *llama_game_create(int w, int h)
         g->use_sprites = true;
     }
 
+    size_t pano_len = 0;
+    const void *pano_blob = llama_plat_pano(&pano_len);
+    if (pano_blob && g3d_pano_open(&g->pano, pano_blob, pano_len)) {
+        g->use_pano = true;
+    }
+
     g->cam_yaw      = 0.f;
     g->cam_dist     = 5.3f;
     g->cam_height   = 1.85f;
@@ -773,12 +869,13 @@ void llama_game_frame(llama_game *g, const llama_input *in, float dt, g3d_target
     g->battery_pct = in->battery_pct;
     g->charging = in->charging;
 
-    /* Dia/noche segun la hora del RTC. */
+    /* Estacion y hora del dia, del reloj de tiempo real. */
     double now = llama_plat_time();
-    int hour = (int)(fmod(now / 3600.0, 24.0));
-    float target_night = (hour >= 21 || hour < 7) ? 1.f : 0.f;
-    g->night = approach(g->night, target_night, 0.35f, dt);
-    g->ctx.light.fog_color = g3d_color_lerp(SKY_DAY_BOT, SKY_NIGHT_BOT, g->night);
+    llama_ambient_eval(&g->amb, now);
+    llama_scene_set_season(&g->scene, g->amb.season);
+    g->night = approach(g->night, g->amb.night, 0.8f, dt);
+    g->ctx.light.fog_color = g->amb.fog;
+    weather_update(g, dt);
 
     handle_input(g, in, fb, dt);
     handle_imu(g, in, dt);

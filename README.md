@@ -80,7 +80,7 @@ make png        # genera capturas PNG de todas las pantallas en build/shots
 ```
 
 Escenas disponibles: `boot`, `main`, `turn`, `food`, `stats`, `minigame`,
-`sleep`, `sick`, `dead`, `cria`, `night`, `shake`.
+`sleep`, `sick`, `dead`, `cria`, `night`, `shake`, `estaciones`, `horas`.
 
 ## Cómo está armado
 

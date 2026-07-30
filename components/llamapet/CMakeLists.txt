@@ -1,5 +1,6 @@
 idf_component_register(
     SRCS "src/pet.c"
+         "src/ambient.c"
          "src/llama_model.c"
          "src/llama_scene.c"
          "src/game.c"

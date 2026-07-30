@@ -5,6 +5,7 @@
 #define LLAMA_SCENE_H
 
 #include "g3d.h"
+#include "llama_ambient.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,10 +26,15 @@ typedef struct {
     g3d_mesh poop;
     g3d_mesh grave;
     g3d_mesh rock;      /* obstaculo del minijuego */
+    llama_season season; /* la estacion con la que se armo el piso */
     bool     ok;
 } llama_scene;
 
 bool llama_scene_init(llama_scene *s);
+
+/* Rearma el piso y las matas con la paleta de la estacion. Es barato: unos
+ * cientos de triangulos, y solo se hace cuando cambia el mes. */
+void llama_scene_set_season(llama_scene *s, llama_season season);
 void llama_scene_free(llama_scene *s);
 
 /* `night` mezcla la paleta hacia tonos nocturnos. */

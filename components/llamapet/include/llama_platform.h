@@ -39,6 +39,10 @@ uint32_t llama_plat_seed(void);
  */
 const void *llama_plat_sprites(size_t *len);
 
+/* Tira panoramica por estacion (la genera tools/mkpano.py). NULL = sin fondo,
+ * y el juego dibuja el degradado de cielo de siempre. */
+const void *llama_plat_pano(size_t *len);
+
 #ifdef __cplusplus
 }
 #endif

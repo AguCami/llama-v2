@@ -76,6 +76,33 @@ bool llama_plat_load(void *blob, size_t len)
     return true;
 }
 
+/* Tira panoramica: mismo criterio que la hoja de sprites. */
+static void *g_pano;
+static size_t g_pano_len;
+
+const void *llama_plat_pano(size_t *len)
+{
+    if (!g_pano) {
+        const char *path = getenv("LLAMA_PANO");
+        if (!path) path = "../assets/pano.bin";
+        FILE *f = fopen(path, "rb");
+        if (!f) return NULL;
+        fseek(f, 0, SEEK_END);
+        long n = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        g_pano = malloc((size_t)n);
+        if (g_pano && fread(g_pano, 1, (size_t)n, f) == (size_t)n) {
+            g_pano_len = (size_t)n;
+        } else {
+            free(g_pano);
+            g_pano = NULL;
+        }
+        fclose(f);
+    }
+    if (len) *len = g_pano_len;
+    return g_pano;
+}
+
 /* ------------------------------------------------------------------ salida */
 
 static void write_ppm(const char *path, const g3d_target *fb)
@@ -158,6 +185,14 @@ int main(int argc, char **argv)
         night = true;
         total_frames = 80;
         shots[0] = 40; shots[1] = 75; shots[2] = -1;
+    } else if (!strcmp(scene, "estaciones")) {
+        /* Un cuadro por estacion: el reloj avanza tres meses entre capturas. */
+        total_frames = 4 * 40;
+        shots[0] = 35; shots[1] = 75; shots[2] = 115; shots[3] = 155; shots[4] = -1;
+    } else if (!strcmp(scene, "horas")) {
+        /* Amanecer, mediodia, atardecer y noche. */
+        total_frames = 4 * 40;
+        shots[0] = 35; shots[1] = 75; shots[2] = 115; shots[3] = 155; shots[4] = -1;
     } else if (!strcmp(scene, "stress")) {
         /* Golpea la pantalla al azar durante horas de juego simuladas. */
         total_frames = 40000;
@@ -232,6 +267,16 @@ int main(int argc, char **argv)
             in.touch_y = (int)((r >> 17) % 284u);
             in.ax = ((float)((r >> 5) & 255) / 128.f) - 1.f;
             in.az = ((float)((r >> 21) & 255) / 128.f) - 1.f;
+        }
+        if (!strcmp(scene, "estaciones") && frame > 0 && frame % 40 == 0) {
+            g_clock += 91.0 * 86400.0;          /* un trimestre */
+        }
+        if (!strcmp(scene, "horas")) {
+            static const float HOURS[4] = { 6.3f, 13.f, 19.6f, 23.f };
+            int slot = frame / 40;
+            if (slot > 3) slot = 3;
+            double day = floor(g_clock / 86400.0) * 86400.0;
+            g_clock = day + HOURS[slot] * 3600.0;
         }
         if (!strcmp(scene, "turn")) game->cam_yaw = frame * 0.048f;
         llama_game_frame(game, &in, dt, &fb);

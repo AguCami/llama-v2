@@ -9,6 +9,8 @@
 #include "llama_scene.h"
 #include "g2d.h"
 #include "g3d_sprite.h"
+#include "g3d_pano.h"
+#include "llama_ambient.h"
 
 /* --------------------------------------------------------------- pantalla */
 
@@ -48,6 +50,9 @@ typedef enum {
     PT_ANGRY,
     PT_COIN,
     PT_NOTE,
+    PT_SNOW,      /* nieve en invierno */
+    PT_LEAF,      /* hojas en otonio */
+    PT_PETAL,     /* petalos en primavera */
     PT_COUNT
 } particle_kind;
 
@@ -59,7 +64,7 @@ typedef struct {
     bool   used;
 } particle;
 
-#define MAX_PARTICLES 20
+#define MAX_PARTICLES 48
 
 /* ---------------------------------------------------------------- minijuego */
 
@@ -95,6 +100,12 @@ struct llama_game {
     g3d_sprite_set sprites;
     bool           use_sprites;
     float          sprite_ref_scale;   /* pixeles por unidad al renderizar */
+
+    /* Fondo panoramico por estacion (ver g3d_pano.h) y ambiente del momento. */
+    g3d_pano_set   pano;
+    bool           use_pano;
+    llama_ambient  amb;
+    float          weather_timer;
 
     game_screen screen;
     float       screen_t;
