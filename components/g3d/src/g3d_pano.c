@@ -58,14 +58,27 @@ void g3d_pano_draw(g3d_target *t, const g3d_pano_set *s, int index,
     /* Fila de la tira que cae en la fila 0 de la pantalla. */
     const int top_row = s->horizon - screen_horizon;
 
+    /*
+     * Debajo del horizonte manda el piso 3D. La tira trae algo de imagen por
+     * debajo para tolerar que la camara se incline, pero no hay que dejarla
+     * bajar de ahi: si no, asoma la llanura de la propia imagen por el hueco
+     * que queda entre el borde del piso y el horizonte.
+     */
+    int last_row = screen_horizon + 2;
+    if (last_row > t->h) last_row = t->h;
+    if (last_row < 0) last_row = 0;
+
     const bool do_shade = (shade < 0.995f || shade > 1.005f);
     const bool do_tint  = (tint_a > 0);
     const float ta = tint_a / 255.f;
 
-    for (int y = 0; y < t->h; y++) {
+    int y = 0;
+    int used = -1;                            /* ultima fila de la tira usada */
+    for (; y < last_row; y++) {
         int row = top_row + y;
         if (row < 0) row = 0;
-        if (row >= s->height) break;          /* debajo del horizonte manda el 3D */
+        if (row >= s->height) break;          /* la tira se termino */
+        used = row;
 
         const uint8_t *src = pix + (size_t)row * s->width * 2;
         g3d_color *dst = t->color + (size_t)y * t->w;
@@ -79,4 +92,33 @@ void g3d_pano_draw(g3d_target *t, const g3d_pano_set *s, int index,
             if (++sx >= s->width) sx = 0;
         }
     }
+
+    if (y >= t->h) return;
+
+    /*
+     * El resto lo tapa el piso 3D, pero el piso es un disco de tamano finito:
+     * cerca del horizonte y en las esquinas quedan pixeles que nadie escribe, y
+     * ahi asomaba el cuadro anterior (la franja negra del primer cuadro y los
+     * flecos de color en los bordes). Se rellena con la neblina de la tira: el
+     * promedio de su ultima fila, que es justo el color de la lejania.
+     */
+    if (used < 0) used = (top_row <= 0) ? 0 : s->height - 1;
+    const uint8_t *src = pix + (size_t)used * s->width * 2;
+    uint32_t ar = 0, ag = 0, ab = 0;
+    int n = 0;
+    for (int sx = 0; sx < s->width; sx += 16, n++) {
+        g3d_color c = (g3d_color)(src[sx * 2] | (src[sx * 2 + 1] << 8));
+        ar += (uint32_t)((c >> 11) & 0x1F);
+        ag += (uint32_t)((c >> 5) & 0x3F);
+        ab += (uint32_t)(c & 0x1F);
+    }
+    g3d_color haze = (g3d_color)((((ar / n) & 0x1F) << 11) |
+                                 (((ag / n) & 0x3F) << 5) | ((ab / n) & 0x1F));
+    if (do_shade) haze = g3d_color_shade(haze, shade);
+    if (do_tint)  haze = g3d_color_lerp(haze, tint_b, ta);
+
+    g3d_color *first = t->color + (size_t)y * t->w;
+    for (int x = 0; x < t->w; x++) first[x] = haze;
+    for (int row = y + 1; row < t->h; row++)
+        memcpy(t->color + (size_t)row * t->w, first, (size_t)t->w * sizeof(g3d_color));
 }

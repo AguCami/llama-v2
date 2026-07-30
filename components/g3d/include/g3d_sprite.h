@@ -39,10 +39,13 @@ bool g3d_sprite_size(const g3d_sprite_set *s, int angle, int pose,
  * Dibuja el sprite anclado en (ax, ay) de la pantalla, escalado por `scale`.
  * Respeta el z-buffer: compara y escribe `invw` (1/w del centro del objeto),
  * asi los objetos mas cercanos del corral siguen tapandolo.
- * `tint` multiplica el brillo (para la noche o la llama enferma).
+ * `tint` multiplica el brillo (para la noche o la llama enferma) y
+ * `tint_b`/`tint_a` mezclan el color de ambiente de la hora, igual que en el
+ * panorama y en g3d_light.
  */
 void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose,
-                     float ax, float ay, float scale, float invw, float tint);
+                     float ax, float ay, float scale, float invw, float tint,
+                     g3d_color tint_b, uint8_t tint_a);
 
 /* Indice de angulo mas cercano a `radians` (0 = mirando a +Z). */
 int g3d_sprite_angle_index(const g3d_sprite_set *s, float radians);

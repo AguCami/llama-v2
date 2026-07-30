@@ -305,6 +305,8 @@ void g3d_draw_mesh(g3d_target *t, const g3d_ctx *ctx, const g3d_mesh *m,
             float f = (dist - L->fog_start) / (L->fog_end - L->fog_start);
             if (f > 0.f) base = g3d_color_lerp(base, L->fog_color, f > 1.f ? 1.f : f);
         }
+        /* Una sola mezcla por triangulo: entra en la LUT y en el camino plano. */
+        if (L->tint_a) base = g3d_color_lerp(base, L->tint_color, L->tint_a / 255.f);
 
         g3d_cv poly[8], tmp[8];
         const bool smooth = (tri->flags & G3D_TRI_SMOOTH) != 0;

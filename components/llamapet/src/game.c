@@ -107,6 +107,11 @@ void game_emit(llama_game *g, particle_kind kind, g3d_v3 pos, int count)
                            (llama_randf() - 0.5f) * 0.3f);
             p->life = p->life0 = 6.f;
             break;
+        case PT_RAIN:
+            /* Cae rapido y casi recta: el viento la inclina despues. */
+            p->vel = g3d_v(0.f, -7.5f - llama_randf() * 2.5f, 0.f);
+            p->life = p->life0 = 1.4f;
+            break;
         default:
             p->vel = g3d_v(0.f, 0.6f, 0.f);
             p->life = p->life0 = 1.3f;
@@ -125,9 +130,14 @@ void game_particles_update(llama_game *g, float dt)
         p->pos = g3d_v3_add(p->pos, g3d_v3_mul(p->vel, dt));
         if (p->kind == PT_SPIT || p->kind == PT_CRUMB || p->kind == PT_COIN) {
             p->vel.y -= 4.2f * dt;   /* gravedad */
-        } else if (p->kind == PT_SNOW || p->kind == PT_LEAF || p->kind == PT_PETAL) {
+        } else if (PT_IS_WEATHER(p->kind)) {
             /* Caida con vaiven lateral; se apagan al tocar el piso. */
-            p->vel.x += sinf(p->life * 3.1f + p->pos.z) * 0.6f * dt;
+            const float wind = g->wind + g->gust;
+            if (p->kind == PT_RAIN) {
+                p->vel.x = wind * 0.55f;      /* la gota no revolotea, se inclina */
+            } else {
+                p->vel.x += (sinf(p->life * 3.1f + p->pos.z) * 0.6f + wind) * dt;
+            }
             if (p->pos.y <= 0.03f) p->used = false;
         } else {
             p->vel.y *= (1.f - 0.6f * dt);
@@ -135,7 +145,8 @@ void game_particles_update(llama_game *g, float dt)
     }
 }
 
-static void draw_particle_icon(g3d_target *t, int kind, int x, int y, int s, float fade)
+static void draw_particle_icon(g3d_target *t, int kind, int x, int y, int s,
+                               float fade, int slant)
 {
     if (s < 2) s = 2;
     switch (kind) {
@@ -194,6 +205,12 @@ static void draw_particle_icon(g3d_target *t, int kind, int x, int y, int s, flo
         g2d_fill_ellipse(t, x, y, s > 3 ? 2 : 1, s > 3 ? 3 : 2,
                          g3d_rgb(250, 214, 228));
         break;
+    case PT_RAIN: {
+        /* Un trazo: alto segun la distancia e inclinado por el viento. */
+        int len = s > 4 ? 5 : (s > 2 ? 4 : 3);
+        g2d_line(t, x - slant, y - len, x, y, g3d_rgb(176, 206, 236));
+        break;
+    }
     default:
         g2d_fill_circle(t, x, y, s, g3d_rgb(255, 255, 255));
         break;
@@ -202,6 +219,7 @@ static void draw_particle_icon(g3d_target *t, int kind, int x, int y, int s, flo
 
 void game_particles_draw(llama_game *g, g3d_target *t)
 {
+    const int slant = (int)((g->wind + g->gust) * 0.55f + (g->wind < 0.f ? -0.5f : 0.5f));
     for (int i = 0; i < MAX_PARTICLES; i++) {
         particle *p = &g->particles[i];
         if (!p->used) continue;
@@ -209,31 +227,100 @@ void game_particles_draw(llama_game *g, g3d_target *t)
         if (!g3d_project(t, &g->ctx, p->pos, &sx, &sy, &scale)) continue;
         float fade = p->life / p->life0;
         int size = (int)(0.09f * scale * p->size);
-        draw_particle_icon(t, p->kind, (int)sx, (int)sy, size, fade);
+        draw_particle_icon(t, p->kind, (int)sx, (int)sy, size, fade, slant);
     }
 }
 
 /* ----------------------------------------------------------------- clima */
 
-/* Nieve, hojas o petalos segun la estacion. Se limita la cantidad para no
- * quedarse con todas las ranuras de particulas y tapar corazones y Zzz. */
+/* Probabilidad de que se largue a llover, por estacion. En invierno cae nieve
+ * en vez de agua, asi que ahi la lluvia queda en cero. */
+static float rain_chance(llama_season s)
+{
+    switch (s) {
+    case SEASON_PRIMAVERA: return 0.40f;
+    case SEASON_OTONIO:    return 0.34f;
+    case SEASON_VERANO:    return 0.16f;   /* tormenta corta de tarde */
+    default:               return 0.f;
+    }
+}
+
+/*
+ * El tiempo no viene del reloj: se sortea y se mueve despacio, asi que dos
+ * ratos de juego no se parecen. El viento cambia cada medio minuto y la lluvia
+ * cada varios minutos; los dos se interpolan para que no haya saltos.
+ */
+static void wind_and_rain_update(llama_game *g, float dt)
+{
+    g->wind_timer -= dt;
+    if (g->wind_timer <= 0.f) {
+        g->wind_timer = 12.f + llama_randf() * 26.f;
+        /* Base del viento, con el signo del sorteo anterior mas o menos mantenido. */
+        float mag = llama_randf() * llama_randf() * 3.2f;    /* casi siempre suave */
+        g->wind_target = (llama_randf() < 0.5f) ? -mag : mag;
+        if (g->rain > 0.4f) g->wind_target *= 1.6f;          /* con lluvia sopla mas */
+    }
+    g->rain_timer -= dt;
+    if (g->rain_timer <= 0.f) {
+        g->rain_timer = 90.f + llama_randf() * 150.f;
+        float chance = rain_chance(g->amb.season);
+        g->rain_target = (llama_randf() < chance)
+                             ? 0.45f + llama_randf() * 0.55f
+                             : 0.f;
+    }
+
+    g->wind = approach(g->wind, g->wind_target, 0.35f, dt);
+    g->rain = approach(g->rain, g->rain_target, 0.20f, dt);
+
+    /* Rafagas: golpes cortos encima de la base, mas seguidos si ya hay viento. */
+    g->gust *= (1.f - 1.8f * dt);
+    if (g->gust < 0.02f && g->gust > -0.02f) g->gust = 0.f;
+    float gust_rate = (0.10f + fabsf(g->wind) * 0.12f + g->rain * 0.15f) * dt;
+    if (llama_randf() < gust_rate) {
+        float k = 0.8f + llama_randf() * 1.6f;
+        g->gust = (g->wind >= 0.f) ? k : -k;
+    }
+}
+
+/* Nieve, hojas, petalos o lluvia. Se limita la cantidad para no quedarse con
+ * todas las ranuras de particulas y tapar corazones y Zzz. */
 static void weather_update(llama_game *g, float dt)
 {
     int kind, budget;
     float per_second;
-    switch (g->amb.season) {
-    case SEASON_INVIERNO:  kind = PT_SNOW;  per_second = 7.f;  budget = 18; break;
-    case SEASON_OTONIO:    kind = PT_LEAF;  per_second = 2.6f; budget = 10; break;
-    case SEASON_PRIMAVERA: kind = PT_PETAL; per_second = 1.8f; budget = 8;  break;
-    default: return;                          /* en verano el cielo esta limpio */
+
+    wind_and_rain_update(g, dt);
+
+    /* Al cambiar de estacion hay que barrer lo que quedo cayendo: si no, se
+     * ven copos de nieve sobre el pastizal de otonio hasta que se apaguen. */
+    if (g->weather_season != (int)g->amb.season) {
+        g->weather_season = (int)g->amb.season;
+        g->weather_timer = 0.f;
+        g->rain_timer = 0.f;               /* vuelve a sortear con la estacion nueva */
+        for (int i = 0; i < MAX_PARTICLES; i++) {
+            particle *p = &g->particles[i];
+            if (p->used && PT_IS_WEATHER(p->kind)) p->used = false;
+        }
+    }
+
+    if (g->rain > 0.15f) {
+        /* Mientras llueve manda el agua: ni petalos ni hojas al mismo tiempo. */
+        kind = PT_RAIN;
+        per_second = 6.f + g->rain * 26.f;
+        budget = 8 + (int)(g->rain * 16.f);
+    } else {
+        switch (g->amb.season) {
+        case SEASON_INVIERNO:  kind = PT_SNOW;  per_second = 7.f;  budget = 18; break;
+        case SEASON_OTONIO:    kind = PT_LEAF;  per_second = 2.6f; budget = 10; break;
+        case SEASON_PRIMAVERA: kind = PT_PETAL; per_second = 1.8f; budget = 8;  break;
+        default: return;                      /* en verano el cielo esta limpio */
+        }
     }
 
     int active = 0;
     for (int i = 0; i < MAX_PARTICLES; i++) {
         const particle *p = &g->particles[i];
-        if (p->used && (p->kind == PT_SNOW || p->kind == PT_LEAF || p->kind == PT_PETAL)) {
-            active++;
-        }
+        if (p->used && PT_IS_WEATHER(p->kind)) active++;
     }
     if (active >= budget) return;
 
@@ -609,9 +696,21 @@ static void handle_input(llama_game *g, const llama_input *in, g3d_target *t, fl
 
 static void handle_imu(llama_game *g, const llama_input *in, float dt)
 {
-    /* Inclinacion suavizada para el parallax de camara. */
-    g->tilt_x = g->tilt_x * 0.9f + clampf(in->ax, -1.f, 1.f) * 0.1f;
-    g->tilt_y = g->tilt_y * 0.9f + clampf(in->ay, -1.f, 1.f) * 0.1f;
+    /*
+     * Inclinacion para el parallax de camara. Se mide contra una linea de base
+     * lenta, no contra el crudo del acelerometro: apoyada sobre la mesa la placa
+     * lee ay ~= -1 por la gravedad, y tomando eso como inclinacion la camara se
+     * iba agachando sola hasta saturar. Con la linea de base, cualquier postura
+     * en reposo es "sin inclinacion" y solo el movimiento mueve la camara.
+     */
+    const float base_k = 1.f - expf(-dt / 2.5f);    /* la base sigue de a poco */
+    const float tilt_k = 1.f - expf(-dt / 0.18f);   /* la respuesta es rapida */
+    g->base_ax += (in->ax - g->base_ax) * base_k;
+    g->base_ay += (in->ay - g->base_ay) * base_k;
+    float want_x = clampf(in->ax - g->base_ax, -1.f, 1.f);
+    float want_y = clampf(in->ay - g->base_ay, -1.f, 1.f);
+    g->tilt_x += (want_x - g->tilt_x) * tilt_k;
+    g->tilt_y += (want_y - g->tilt_y) * tilt_k;
 
     float d = fabsf(in->ax - g->last_ax) + fabsf(in->ay - g->last_ay) +
               fabsf(in->az - g->last_az);
@@ -668,6 +767,11 @@ static void draw_sky(llama_game *g, g3d_target *t)
         g3d_sky_gradient(t, g->amb.sky_top, g->amb.sky_bottom, 0, t->h);
     }
 
+    /* Con lluvia el cielo esta cubierto: el sol y las estrellas se apagan. */
+    const float clear = 1.f - g->rain;
+    if (clear <= 0.05f) return;
+    const uint8_t ca = (uint8_t)(clear * 255.f);
+
     if (g->night > 0.5f) {
         /* Estrellas deterministas. */
         uint32_t s = 12345;
@@ -676,16 +780,17 @@ static void draw_sky(llama_game *g, g3d_target *t)
             int x = (int)((s >> 16) % (uint32_t)t->w);
             s = s * 1103515245u + 12345u;
             int y = (int)((s >> 16) % 110u);
-            g2d_pixel(t, x, y, g3d_rgb(240, 240, 255));
+            g2d_blend_rect(t, x, y, 1, 1, g3d_rgb(240, 240, 255), ca);
         }
-        g2d_fill_circle(t, 188, 40, 14, g3d_rgb(238, 238, 220));
-        g2d_fill_circle(t, 182, 36, 12, g3d_color_lerp(SKY_NIGHT_TOP, SKY_NIGHT_BOT, 0.35f));
+        g2d_blend_ellipse(t, 188, 40, 14, 14, g3d_rgb(238, 238, 220), ca);
+        g2d_blend_ellipse(t, 182, 36, 12, 12,
+                          g3d_color_lerp(SKY_NIGHT_TOP, SKY_NIGHT_BOT, 0.35f), ca);
     } else {
         /* Sol con halo en tres capas. */
-        g2d_blend_ellipse(t, 196, 40, 34, 34, g3d_rgb(255, 240, 170), 55);
-        g2d_blend_ellipse(t, 196, 40, 22, 22, g3d_rgb(255, 244, 190), 110);
-        g2d_fill_circle(t, 196, 40, 14, g3d_rgb(255, 246, 186));
-        g2d_fill_circle(t, 196, 40, 11, g3d_rgb(255, 252, 224));
+        g2d_blend_ellipse(t, 196, 40, 34, 34, g3d_rgb(255, 240, 170), (uint8_t)(55 * clear));
+        g2d_blend_ellipse(t, 196, 40, 22, 22, g3d_rgb(255, 244, 190), (uint8_t)(110 * clear));
+        g2d_blend_ellipse(t, 196, 40, 14, 14, g3d_rgb(255, 246, 186), ca);
+        g2d_blend_ellipse(t, 196, 40, 11, 11, g3d_rgb(255, 252, 224), ca);
     }
 }
 
@@ -716,7 +821,8 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
 
     /* Profundidad del plano que pasa por el centro del bicho. */
     float invw = pscale / (g->sprite_ref_scale * g->cam_dist);
-    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale, invw, tint);
+    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale, invw, tint,
+                    g->ctx.light.tint_color, g->ctx.light.tint_a);
 }
 
 static void draw_world_and_pet(llama_game *g, g3d_target *t)
@@ -811,6 +917,8 @@ llama_game *llama_game_create(int w, int h)
     const void *pano_blob = llama_plat_pano(&pano_len);
     if (pano_blob && g3d_pano_open(&g->pano, pano_blob, pano_len)) {
         g->use_pano = true;
+        /* Con panorama, la cordillera y las nubes 3D estarian de mas. */
+        g->scene.backdrop_3d = false;
     }
 
     g->cam_yaw      = 0.f;
@@ -878,9 +986,27 @@ void llama_game_frame(llama_game *g, const llama_input *in, float dt, g3d_target
     double now = llama_plat_time();
     llama_ambient_eval(&g->amb, now);
     llama_scene_set_season(&g->scene, g->amb.season);
+    weather_update(g, dt);
+
+    /* Nublado: la lluvia apaga el sol y lleva todo hacia un gris azulado. Se
+     * corrige el ambiente de la hora antes de repartirlo al fondo y a la luz. */
+    if (g->rain > 0.01f) {
+        const g3d_color grey = g3d_rgb(96, 104, 118);
+        const float r = g->rain;
+        g->amb.shade *= 1.f - 0.30f * r;
+        g->amb.tint   = g3d_color_lerp(g->amb.tint, grey, r * 0.75f);
+        int a = (int)g->amb.tint_a + (int)(120.f * r);
+        g->amb.tint_a = (uint8_t)(a > 200 ? 200 : a);
+        g->amb.fog    = g3d_color_lerp(g->amb.fog, grey, r * 0.55f);
+    }
+
     g->night = approach(g->night, g->amb.night, 0.8f, dt);
     g->ctx.light.fog_color = g->amb.fog;
-    weather_update(g, dt);
+    /* El color de la hora tambien va al mundo 3D, pero mas suave que en el
+     * panorama: el fondo se puede fundir en la noche, la llama tiene que
+     * seguir leyendose. */
+    g->ctx.light.tint_color = g->amb.tint;
+    g->ctx.light.tint_a     = (uint8_t)((int)g->amb.tint_a * 5 / 8);
 
     handle_input(g, in, fb, dt);
     handle_imu(g, in, dt);

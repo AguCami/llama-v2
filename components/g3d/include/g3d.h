@@ -133,6 +133,10 @@ typedef struct {
     g3d_color fog_color; /* color del horizonte */
     float     fog_start; /* distancia donde empieza la niebla */
     float     fog_end;   /* distancia donde todo es niebla */
+    /* Color de ambiente de la hora del dia: el mismo que tinta el panorama, para
+     * que el piso y el corral no queden en pleno dia bajo un cielo de noche. */
+    g3d_color tint_color;
+    uint8_t   tint_a;    /* 0 = sin tintar */
 } g3d_light;
 
 typedef struct {

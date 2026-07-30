@@ -27,6 +27,7 @@ typedef struct {
     g3d_mesh grave;
     g3d_mesh rock;      /* obstaculo del minijuego */
     llama_season season; /* la estacion con la que se armo el piso */
+    bool     backdrop_3d; /* false cuando el fondo lo pone el panorama */
     bool     ok;
 } llama_scene;
 

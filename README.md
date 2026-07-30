@@ -36,6 +36,13 @@ mismo código que la placa.
 - **Sensores**: sacudir la placa hace saltar a la llama (o la despierta), la
   inclinación mueve suavemente la cámara y el arrastre con el dedo la orbita.
 - **Día y noche** según el reloj RTC: cielo, estrellas, luna y luces cambian.
+- **Estaciones** (hemisferio sur): el paisaje de fondo es un panorama de 360°
+  generado con Higgsfield, uno por estación, y el pasto, la nieve y las flores
+  del corral lo acompañan. Nieve en invierno, hojas en otoño, pétalos en
+  primavera.
+- **Tiempo variable**: viento con ráfagas que empuja las partículas y lluvia
+  que se larga sola de vez en cuando (según la estación), tapa el sol y
+  agrisa la luz de toda la escena.
 - **Ahorro de energía**: baja el brillo a los 25 s sin uso y entra en sueño
   profundo a los 3 min; se despierta al tocar la pantalla.
 

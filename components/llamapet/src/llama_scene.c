@@ -110,7 +110,6 @@ static void build_ground(g3d_mesh *m)
             int p2 = g3d_mesh_vertex(m, g3d_v(c1 * r1, -0.02f, s1 * r1));
             int p3 = g3d_mesh_vertex(m, g3d_v(c0 * r1, -0.02f, s0 * r1));
             g3d_color c = RING_C[r];
-            c = g3d_color_lerp(g_pal->far, c, 0.f);
             if ((seg + r) % 3 == 0) c = g3d_color_shade(c, 1.06f);
             g3d_mesh_quad(m, p0, p3, p2, p1, c);
         }
@@ -304,6 +303,7 @@ bool llama_scene_init(llama_scene *s)
     build_grave(&s->grave);
     build_rock(&s->rock);
     s->season = SEASON_VERANO;
+    s->backdrop_3d = true;
     s->ok = true;
     return true;
 }
@@ -350,11 +350,13 @@ void llama_scene_draw_world(g3d_target *t, const g3d_ctx *ctx, const llama_scene
 {
     const float tint = 1.f - night * 0.58f;
     g3d_mat4 id = g3d_mat4_identity();
-    /* Las nubes van sin niebla: si no, se funden con el cielo y desaparecen. */
-    g3d_ctx sky_ctx = *ctx;
-    sky_ctx.light.fog_end = sky_ctx.light.fog_start;
-    g3d_draw_mesh(t, &sky_ctx, &s->clouds, &id, tint * (1.f - night * 0.25f));
-    g3d_draw_mesh(t, ctx, &s->mountains, &id, tint * 0.95f);
+    if (s->backdrop_3d) {
+        /* Las nubes van sin niebla: si no, se funden con el cielo y desaparecen. */
+        g3d_ctx sky_ctx = *ctx;
+        sky_ctx.light.fog_end = sky_ctx.light.fog_start;
+        g3d_draw_mesh(t, &sky_ctx, &s->clouds, &id, tint * (1.f - night * 0.25f));
+        g3d_draw_mesh(t, ctx, &s->mountains, &id, tint * 0.95f);
+    }
     g3d_draw_mesh(t, ctx, &s->ground, &id, tint);
     g3d_draw_mesh(t, ctx, &s->tufts, &id, tint);
     g3d_draw_mesh(t, ctx, &s->fence, &id, tint);

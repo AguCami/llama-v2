@@ -74,7 +74,8 @@ int g3d_sprite_angle_index(const g3d_sprite_set *s, float radians)
 }
 
 void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose,
-                     float ax, float ay, float scale, float invw, float tint)
+                     float ax, float ay, float scale, float invw, float tint,
+                     g3d_color tint_b, uint8_t tint_a)
 {
     if (!s->blob || scale <= 0.f) return;
 
@@ -111,6 +112,8 @@ void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose
     if (dw <= 0 || dh <= 0) return;
 
     const bool shaded = (tint < 0.995f || tint > 1.005f);
+    const bool tinted = (tint_a > 0);
+    const float ta = tint_a / 255.f;
     uint32_t sy = src_y0;
 
     for (int y = 0; y < dh; y++) {
@@ -132,6 +135,7 @@ void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose
 
             g3d_color c = (g3d_color)(crow[col * 2] | (crow[col * 2 + 1] << 8));
             if (shaded) c = g3d_color_shade(c, tint);
+            if (tinted) c = g3d_color_lerp(c, tint_b, ta);
 
             if (a >= 15) {
                 dst[x] = c;

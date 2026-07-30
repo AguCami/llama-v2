@@ -16,7 +16,7 @@ Formato del blob:
     count               uint16   estaciones
     width, height       uint16 x2
     horizon             uint16   fila de la tira donde cae el horizonte
-    reserved            uint16 x2
+    reserved            uint16 x3   (el encabezado mide 20 bytes en total)
     tabla               uint32 * count   offset de cada tira
     datos               uint16 * width*height   RGB565 por tira
 """
@@ -95,8 +95,9 @@ def main():
     strips = [build_strip(p, W, H, args.horizon_row, args.horizon_frac, args.band)
               for p in args.images]
 
-    head = struct.pack('<4sHHHHHHH', b'LPAN', 1, len(strips), W, H,
-                       args.horizon_row, 0, 0)
+    head = struct.pack('<4sHHHHHHHH', b'LPAN', 1, len(strips), W, H,
+                       args.horizon_row, 0, 0, 0)
+    assert len(head) == 20, 'el encabezado tiene que medir PANO_HEAD bytes'
     table_size = 4 * len(strips)
     data_start = len(head) + table_size
     offsets, blobs, off = [], [], data_start

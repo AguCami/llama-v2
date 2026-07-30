@@ -53,8 +53,13 @@ typedef enum {
     PT_SNOW,      /* nieve en invierno */
     PT_LEAF,      /* hojas en otonio */
     PT_PETAL,     /* petalos en primavera */
+    PT_RAIN,      /* lluvia, en cualquier estacion menos invierno */
     PT_COUNT
 } particle_kind;
+
+/* Las que caen del cielo: las mueve el viento y las barre el cambio de clima. */
+#define PT_IS_WEATHER(k) \
+    ((k) == PT_SNOW || (k) == PT_LEAF || (k) == PT_PETAL || (k) == PT_RAIN)
 
 typedef struct {
     g3d_v3 pos, vel;
@@ -106,6 +111,16 @@ struct llama_game {
     bool           use_pano;
     llama_ambient  amb;
     float          weather_timer;
+    int            weather_season;   /* estacion del clima que ya esta en el aire */
+
+    /* Tiempo del dia: se sortea solo y se mueve despacio. */
+    float rain;          /* 0 = seco, 1 = chaparron */
+    float rain_target;
+    float rain_timer;    /* cuando toca volver a sortear */
+    float wind;          /* fuerza con signo, en unidades de mundo por segundo */
+    float wind_target;
+    float wind_timer;
+    float gust;          /* rafaga: se suma al viento y decae */
 
     game_screen screen;
     float       screen_t;
@@ -145,6 +160,7 @@ struct llama_game {
     /* IMU. */
     float shake_energy;
     float tilt_x, tilt_y;
+    float base_ax, base_ay;      /* postura de reposo, para medir inclinacion */
     float last_ax, last_ay, last_az;
 
     /* Sistema. */

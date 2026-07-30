@@ -146,6 +146,7 @@ int main(int argc, char **argv)
     llama_stage force_stage = LLAMA_STAGE_COUNT;
     bool night = false;
     bool shake = false;
+    bool rain = false;
 
     if (!strcmp(scene, "boot")) {
         total_frames = 40;
@@ -189,6 +190,12 @@ int main(int argc, char **argv)
         /* Un cuadro por estacion: el reloj avanza tres meses entre capturas. */
         total_frames = 4 * 40;
         shots[0] = 35; shots[1] = 75; shots[2] = 115; shots[3] = 155; shots[4] = -1;
+    } else if (!strncmp(scene, "grilla", 6)) {
+        /* Una fila de la grilla estacion x hora: el digito elige la estacion. */
+        int q = scene[6] ? scene[6] - '0' : 0;
+        g_clock += (double)q * 91.0 * 86400.0;
+        total_frames = 4 * 40;
+        shots[0] = 35; shots[1] = 75; shots[2] = 115; shots[3] = 155; shots[4] = -1;
     } else if (!strcmp(scene, "horas")) {
         /* Amanecer, mediodia, atardecer y noche. */
         total_frames = 4 * 40;
@@ -200,6 +207,10 @@ int main(int argc, char **argv)
     } else if (!strcmp(scene, "turn")) {
         total_frames = 130;
         shots[0] = 10; shots[1] = 40; shots[2] = 70; shots[3] = 100; shots[4] = 125; shots[5] = -1;
+    } else if (!strcmp(scene, "lluvia")) {
+        rain = true;
+        total_frames = 120;
+        shots[0] = 40; shots[1] = 70; shots[2] = 100; shots[3] = -1;
     } else if (!strcmp(scene, "shake")) {
         shake = true;
         total_frames = 90;
@@ -226,6 +237,12 @@ int main(int argc, char **argv)
     pet->wool = 72.f;                      /* muestra el boton de esquila */
     pet->poops = 2;
     pet->coins = 12;
+    if (rain) {
+        /* Chaparron con viento fijo, para la captura. */
+        game->rain = game->rain_target = 0.9f;
+        game->wind = game->wind_target = 2.8f;
+        game->rain_timer = game->wind_timer = 1e6f;
+    }
 
     const float dt = 1.f / 30.f;
     char path[512];
@@ -271,7 +288,7 @@ int main(int argc, char **argv)
         if (!strcmp(scene, "estaciones") && frame > 0 && frame % 40 == 0) {
             g_clock += 91.0 * 86400.0;          /* un trimestre */
         }
-        if (!strcmp(scene, "horas")) {
+        if (!strcmp(scene, "horas") || !strncmp(scene, "grilla", 6)) {
             static const float HOURS[4] = { 6.3f, 13.f, 19.6f, 23.f };
             int slot = frame / 40;
             if (slot > 3) slot = 3;
