@@ -327,6 +327,11 @@ int main(int argc, char **argv)
         g_clock += dt;
         g_millis += (uint32_t)(dt * 1000.f);
 
+        const char *dump = getenv("LLAMA_DUMP");
+        if (dump && frame % 2 == 0) {
+            snprintf(path, sizeof(path), "%s/f_%04d.ppm", dump, frame);
+            write_ppm(path, &fb);
+        }
         if (shots[shot_idx] == frame) {
             snprintf(path, sizeof(path), "%s/%s_%02d.ppm", outdir, scene, shot_idx);
             write_ppm(path, &fb);
