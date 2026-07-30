@@ -31,6 +31,36 @@ void     llama_plat_tone(int f, int ms) { (void)f; (void)ms; }
 void     llama_plat_haptic(int ms)      { (void)ms; }
 uint32_t llama_plat_seed(void)   { return 0xC0FFEE11u; }
 
+/* Hoja de sprites: en la PC se lee del archivo que genera tools/mksprites.py. */
+static void *g_sprites;
+static size_t g_sprites_len;
+
+const void *llama_plat_sprites(size_t *len)
+{
+    if (!g_sprites) {
+        const char *path = getenv("LLAMA_SPRITES");
+        if (!path) path = "../assets/llama_sprites.bin";
+        FILE *f = fopen(path, "rb");
+        if (!f) {
+            fprintf(stderr, "sin hoja de sprites (%s): uso el modelo procedural\n", path);
+            return NULL;
+        }
+        fseek(f, 0, SEEK_END);
+        long n = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        g_sprites = malloc((size_t)n);
+        if (g_sprites && fread(g_sprites, 1, (size_t)n, f) == (size_t)n) {
+            g_sprites_len = (size_t)n;
+        } else {
+            free(g_sprites);
+            g_sprites = NULL;
+        }
+        fclose(f);
+    }
+    if (len) *len = g_sprites_len;
+    return g_sprites;
+}
+
 bool llama_plat_save(const void *blob, size_t len)
 {
     if (len > sizeof(g_slot)) return false;

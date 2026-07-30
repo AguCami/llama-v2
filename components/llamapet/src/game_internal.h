@@ -8,6 +8,7 @@
 #include "llama_model.h"
 #include "llama_scene.h"
 #include "g2d.h"
+#include "g3d_sprite.h"
 
 /* --------------------------------------------------------------- pantalla */
 
@@ -89,6 +90,12 @@ struct llama_game {
     llama_scene scene;
     g3d_ctx     ctx;
 
+    /* Sprites pre-renderizados del modelo original (ver g3d_sprite.h). Si la
+     * hoja no esta disponible se dibuja el modelo procedural. */
+    g3d_sprite_set sprites;
+    bool           use_sprites;
+    float          sprite_ref_scale;   /* pixeles por unidad al renderizar */
+
     game_screen screen;
     float       screen_t;
 
@@ -147,6 +154,7 @@ void  game_toast(llama_game *g, const char *msg);
 void  game_emit(llama_game *g, particle_kind kind, g3d_v3 pos, int count);
 void  game_particles_update(llama_game *g, float dt);
 void  game_particles_draw(llama_game *g, g3d_target *t);
+void  game_draw_llama(llama_game *g, g3d_target *t, float tint);
 
 /* ui.c */
 void  ui_draw_hud(llama_game *g, g3d_target *t);

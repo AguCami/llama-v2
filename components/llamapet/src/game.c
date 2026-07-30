@@ -594,6 +594,36 @@ static void draw_sky(llama_game *g, g3d_target *t)
     }
 }
 
+/*
+ * Dibuja la llama: si hay hoja de sprites usa el modelo original renderizado
+ * (ver g3d_sprite.h); si no, cae en la geometria procedural.
+ */
+void game_draw_llama(llama_game *g, g3d_target *t, float tint)
+{
+    if (!g->use_sprites) {
+        llama_model_draw(t, &g->ctx, &g->model, tint);
+        return;
+    }
+    const llama_model *m = &g->model;
+
+    /* El rebote de la animacion mueve el sprite entero; no dejamos que lo
+     * hunda bajo el piso cuando la pose es de descanso. */
+    float bob = m->body_y > 0.f ? m->body_y : 0.f;
+    g3d_v3 base = g3d_v(m->pos.x, m->pos.y + bob, m->pos.z);
+
+    float sx, sy, pscale;
+    if (!g3d_project(t, &g->ctx, base, &sx, &sy, &pscale)) return;
+    if (g->sprite_ref_scale <= 0.f) return;
+
+    /* Angulo aparente = orientacion de la llama menos el azimut de la camara. */
+    int angle = g3d_sprite_angle_index(&g->sprites, m->heading - g->cam_yaw);
+    float scale = m->scale * pscale / g->sprite_ref_scale;
+
+    /* Profundidad del plano que pasa por el centro del bicho. */
+    float invw = pscale / (g->sprite_ref_scale * g->cam_dist);
+    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale, invw, tint);
+}
+
 static void draw_world_and_pet(llama_game *g, g3d_target *t)
 {
     const float night = g->night;
@@ -621,7 +651,7 @@ static void draw_world_and_pet(llama_game *g, g3d_target *t)
 
     float tint = 1.f - night * 0.35f;
     if (llama_pet_sick(&g->pet)) tint *= 0.85f;
-    llama_model_draw(t, &g->ctx, &g->model, tint);
+    game_draw_llama(g, t, tint);
     game_particles_draw(g, t);
 }
 
@@ -673,6 +703,15 @@ llama_game *llama_game_create(int w, int h)
     g->ctx.light.fog_start = 11.f;
     g->ctx.light.fog_end   = 62.f;
 
+    /* Hoja de sprites del modelo original. La escala de referencia se mide con
+     * la misma camara con la que los renderizo la herramienta, asi que el
+     * sprite queda del tamano exacto que tendria el modelo en 3D. */
+    size_t sprite_len = 0;
+    const void *sprite_blob = llama_plat_sprites(&sprite_len);
+    if (sprite_blob && g3d_sprite_open(&g->sprites, sprite_blob, sprite_len)) {
+        g->use_sprites = true;
+    }
+
     g->cam_yaw      = 0.f;
     g->cam_dist     = 5.3f;
     g->cam_height   = 1.85f;
@@ -684,6 +723,19 @@ llama_game *llama_game_create(int w, int h)
 
     sync_appearance(g);
     llama_model_update(&g->model, 0.f);
+
+    if (g->use_sprites) {
+        /* Camara canonica (llama en el origen, cam_yaw = 0) para medir cuantos
+         * pixeles por unidad de mundo uso la herramienta. */
+        g3d_ctx ref = g->ctx;
+        g3d_ctx_camera(&ref, g3d_v(0.f, g->cam_height, g->cam_dist),
+                       g3d_v(0.f, g->cam_target_y, 0.f), 0.72f,
+                       (float)w / (float)h, 0.15f, 60.f);
+        g3d_target probe = { .w = w, .h = h, .color = NULL, .depth = NULL };
+        float sc = 1.f;
+        g3d_project(&probe, &ref, g3d_v(0.f, 0.f, 0.f), NULL, NULL, &sc);
+        g->sprite_ref_scale = sc;
+    }
     return g;
 }
 

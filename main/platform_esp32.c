@@ -72,3 +72,17 @@ uint32_t llama_plat_seed(void)
 {
     return esp_random();
 }
+
+/*
+ * La hoja de sprites se embute en el binario y queda mapeada en flash, asi que
+ * se lee con un puntero y no gasta un byte de RAM.
+ */
+extern const uint8_t llama_sprites_start[] asm("_binary_llama_sprites_bin_start");
+extern const uint8_t llama_sprites_end[]   asm("_binary_llama_sprites_bin_end");
+
+const void *llama_plat_sprites(size_t *len)
+{
+    size_t n = (size_t)(llama_sprites_end - llama_sprites_start);
+    if (len) *len = n;
+    return n > 32 ? llama_sprites_start : NULL;
+}

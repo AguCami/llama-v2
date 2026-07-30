@@ -1,9 +1,11 @@
 # Mi Llama — mascota virtual 3D para ESP32-S3-Touch-LCD-1.83
 
-Un Tamagotchi con una llama modelada en 3D, renderizada en tiempo real por
-software sobre la pantalla táctil de 1.83" (240 × 284) de la placa Waveshare
-**ESP32-S3-Touch-LCD-1.83** (SKU 32790). Sin LVGL, sin sprites: hay un motor 3D
-propio con z-buffer que dibuja la llama poligonal, el corral y la cordillera.
+Un Tamagotchi para la placa Waveshare **ESP32-S3-Touch-LCD-1.83** (SKU 32790),
+sobre su pantalla táctil de 1.83" (240 × 284). Sin LVGL: hay un motor 3D propio
+con z-buffer que dibuja el corral, el cerco y la cordillera, y la llama es el
+modelo de 29.314 triángulos generado con Higgsfield, pre-renderizado desde 16
+ángulos con su textura de 2048×2048. Lo que se ve en pantalla es ese modelo, no
+una aproximación hecha a mano.
 
 | Corral | Modelo 3D | Cría |
 |---|---|---|
@@ -18,10 +20,11 @@ mismo código que la placa.
 
 ## Qué hace
 
-- **Llama 3D animada**: camina, come, salta, duerme en postura *kush*, se
-  enferma, parpadea, mueve las orejas y **escupe** si la querés sobrealimentar.
-  El cuerpo, el cuello, la cabeza y las patas son superficies de revolución con
-  sombreado suave, no cajas: 14 piezas articuladas por una jerarquía de huesos.
+- **La llama es el modelo original**: 16 ángulos pre-renderizados que la placa
+  copia como sprites con alfa de 4 bits, respetando el z-buffer del corral.
+  Arrastrando el dedo la cámara la orbita y va cambiando de ángulo.
+- Se mueve por el corral, come, salta, se enferma y **escupe** si la querés
+  sobrealimentar.
 - **Necesidades reales**: hambre, ánimo, energía, higiene y salud bajan con el
   tiempo, incluso con el equipo apagado (se recupera con el RTC al encender).
 - **Ciclo de vida**: cría → joven → adulta → anciana. Cambian el tamaño, las
@@ -111,11 +114,29 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 - Framebuffer RGB565: 240 × 284 × 2 = **133 KB** en PSRAM.
 - Z-buffer (float, guarda 1/w): **266 KB** en PSRAM.
 - Buffers DMA de volcado: 2 × 19 KB en RAM interna.
-- Geometría típica por cuadro: **~1.070 triángulos** (llama ~920, escenario el resto).
+- Hoja de sprites: **392 KB** embutidos en el binario y **mapeados desde flash**,
+  o sea que no gastan un byte de RAM.
+- Geometría 3D por cuadro: **~620 triángulos** (solo el escenario).
+- Medición de referencia: **0.87 ms por cuadro** en x86-64 con `-O2`, un 23 %
+  menos que dibujando la llama con geometría procedural (1.14 ms). Copiar
+  píxeles sale más barato que rasterizar 920 triángulos. El número sobre la
+  placa todavía no está medido (ver limitaciones).
 - El bucle principal se limita a ~30 fps a propósito, para cuidar la batería.
-- Medición de referencia: **1.14 ms por cuadro** (lógica + render completo) en
-  x86-64 con `-O2`. El ESP32-S3 es bastante más lento; el número de la placa
-  todavía no está medido (ver limitaciones).
+
+### Por qué sprites y no la malla
+
+El modelo tiene 29.314 triángulos: unas 30 veces el presupuesto de la placa, o
+sea ~2 fps. Decimarlo tampoco sirve — es una reconstrucción hecha desde una
+imagen, sin aristas limpias que preservar, y al bajarlo a 758 triángulos pierde
+la forma (está en `assets/ref/llama_lowpoly.bin` si querés comparar). Renderizarlo
+**fuera** de la placa no tiene límite de tiempo, así que ahí se usan los 29.314
+triángulos completos con su textura, y el ESP32 solo copia el resultado.
+
+Para regenerar la hoja después de cambiar el modelo o la cámara:
+
+```bash
+python3 tools/mksprites.py --angles 16 --ss 3
+```
 
 ## Limitaciones conocidas
 
@@ -124,6 +145,12 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
   queda como enganche listo en `main/platform_esp32.c` en lugar de adivinar el
   cableado; el juego ya llama a esa función en todos los eventos.
 - El driver del **AXP2101** es mínimo (porcentaje de batería y estado de carga).
+- **Una sola pose.** Por ahora la hoja tiene la pose de pie en 16 ángulos, así
+  que la llama no camina ni se echa a dormir: se mueve por el corral, rebota y
+  escala, pero durmiendo se la ve parada. Las poses se generan igual que los
+  ángulos (posando la malla offline, donde la calidad no cuesta nada); es el
+  siguiente paso.
+- Las cuatro etapas de vida se diferencian por escala, no por proporciones.
 - **El firmware no está probado sobre la placa física** (no tengo una acá), así
   que los fps reales y el ajuste fino de la pantalla (inversión de color,
   orientación del táctil) hay que confirmarlos al grabarla. Lo que sí está
@@ -134,12 +161,16 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 
 ## Créditos de arte
 
-El diseño de la llama se guió por una referencia generada con Higgsfield (imagen
-y malla GLB); ver [`docs/assets.md`](docs/assets.md). De esa referencia salieron
-la paleta y, sobre todo, las proporciones: cuerpo redondo, patas cortas, cuello
-grueso, hocico gris y manta andina tejida.
+La llama se generó con Higgsfield: primero la imagen de referencia y después el
+modelo 3D texturizado a partir de ella. El detalle del proceso, los identificadores
+de los trabajos y el pipeline de sprites están en [`docs/assets.md`](docs/assets.md).
 
-En `assets/ref/llama_lowpoly.bin` está la malla original de Higgsfield soldada y
-decimada de 29.519 a 758 triángulos, para poder compararla contra el modelo
-procedural. La geometría que corre en la placa sigue siendo la procedural, que a
-este presupuesto se ve bastante mejor que la reconstrucción decimada.
+| Archivo | Qué es |
+|---|---|
+| `assets/ref/llama.glb` | modelo original texturizado (29.314 triángulos, textura 2048²) |
+| `assets/llama_sprites.bin` | los 16 ángulos ya renderizados, lo que va a la placa |
+| `assets/ref/llama_lowpoly.bin` | la malla decimada a 758 triángulos, solo como comparación |
+
+El modelo procedural de superficies de revolución sigue en el repositorio
+(`components/llamapet/src/llama_model.c`) y se usa solo/como respaldo si falta la
+hoja de sprites, además de proveer el esqueleto que ubica las partículas.

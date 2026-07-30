@@ -46,3 +46,52 @@ Para probar otra estética (llama punk, con gorro, de otro color), alcanza con
 generar una referencia nueva y cambiar los colores de la tabla de arriba más las
 proporciones en `props_for()` de `llama_model.c`. El simulador de escritorio
 (`cd sim && make png`) muestra el resultado sin necesidad de grabar la placa.
+
+
+## 3. Modelo texturizado y pipeline de sprites
+
+El primer GLB salió **sin textura** (`should_texture` viene en false por
+defecto): posiciones, normales y UV, pero cero materiales. Se regeneró con
+textura:
+
+- Modelo: `image_to_3d` con `should_texture: true` (30 créditos)
+- Job: `e40bc89f-c05d-4858-8969-be369973981b`
+- Resultado: 29.314 triángulos, textura JPEG de 2048×2048, 4 MB
+- Guardado en `assets/ref/llama.glb`
+
+### Qué hace la herramienta
+
+`tools/mksprites.py` carga ese GLB con `tools/glb.py` (lector mínimo de glTF
+binario) y lo rasteriza con `tools/render.py`, un renderizador offline con
+z-buffer, UV con corrección de perspectiva y la **misma cámara y la misma luz
+que el motor del juego** — misma distancia, misma altura, mismo campo de visión,
+misma dirección de luz y mismo ambiente hemisférico. Por eso el sprite se
+integra con el corral 3D en vez de parecer pegado encima.
+
+Cada ángulo se renderiza a 240×284 con supermuestreo 3× (720×852) y se reduce
+promediando ponderado por cobertura, de donde sale el alfa de los bordes. El
+resultado se recorta a su caja útil y se guarda con el desplazamiento respecto
+del punto de anclaje, que es el origen del modelo (entre las patas) proyectado
+a pantalla. En la placa se proyecta la posición de la llama, se compara la
+escala contra la de referencia y se copia el sprite escalado — así la cría, los
+saltos y el paseo por el corral salen del mismo bitmap.
+
+La orientación del modelo: **Y arriba, y a yaw 0 mira hacia +Z**, que es la
+convención del juego. Ojo que la versión pelada venía con los ejes al revés.
+
+### Números
+
+| | |
+|---|---|
+| Ángulos | 16 (uno cada 22,5°) |
+| Tamaño típico del recorte | 110 × 125 px |
+| Hoja completa | 392 KB, mapeada desde flash |
+| Generación | ~21 s en x86 para los 16 ángulos |
+
+### Descartado: importar la malla
+
+Se probó decimar el GLB para dibujarlo en 3D real en la placa. Soldando primero
+los vértices duplicados (25.008 → 14.761) el decimador por cuádricas baja hasta
+758 triángulos, pero el resultado pierde la forma: es una reconstrucción hecha
+desde una foto, su detalle está en el ruido de la superficie y no tiene aristas
+limpias que preservar. Quedó en `assets/ref/llama_lowpoly.bin` como comparación.

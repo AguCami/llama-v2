@@ -159,6 +159,6 @@ void minigame_draw(llama_game *g, g3d_target *t)
 
     float tint = 1.f - night * 0.35f;
     if (m->hit_flash > 0.f) tint *= (1.f + m->hit_flash * 0.6f);
-    llama_model_draw(t, &g->ctx, &g->model, tint);
+    game_draw_llama(g, t, tint);
     game_particles_draw(g, t);
 }

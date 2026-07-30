@@ -32,6 +32,13 @@ void llama_plat_haptic(int ms);
 /* Semilla de entropia para el generador pseudoaleatorio. */
 uint32_t llama_plat_seed(void);
 
+/*
+ * Hoja de sprites de la llama (la genera tools/mksprites.py desde el GLB).
+ * En el ESP32 vive mapeada en flash; en el simulador se lee de un archivo.
+ * Devolver NULL hace que el juego caiga en el modelo procedural.
+ */
+const void *llama_plat_sprites(size_t *len);
+
 #ifdef __cplusplus
 }
 #endif

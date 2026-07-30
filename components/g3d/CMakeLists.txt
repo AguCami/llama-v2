@@ -3,4 +3,5 @@ idf_component_register(
          "src/g3d_mesh.c"
          "src/g3d_raster.c"
          "src/g2d.c"
+         "src/g3d_sprite.c"
     INCLUDE_DIRS "include")
