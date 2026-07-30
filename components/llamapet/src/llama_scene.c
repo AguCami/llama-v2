@@ -13,6 +13,13 @@
 #define COL_DIRT     g3d_rgb(168, 138,  94)
 #define COL_WOOD     g3d_rgb(150, 106,  62)
 #define COL_WOOD_D   g3d_rgb(122,  84,  48)
+/* Paleta del corral, muestreada de assets/ref/corral.png (Higgsfield). */
+#define COL_RAIL     g3d_rgb(158,  97,  52)
+#define COL_RAIL_D   g3d_rgb(148,  88,  46)
+#define COL_POST     g3d_rgb(138,  90,  56)
+#define COL_CARVE    g3d_rgb( 70,  36,  14)
+#define COL_BAND_T   g3d_rgb( 64, 118, 102)
+#define COL_BAND_R   g3d_rgb(146,  64,  46)
 #define COL_MTN      g3d_rgb(108, 122, 156)
 #define COL_MTN_FAR  g3d_rgb(126, 140, 172)
 #define COL_TUFT     g3d_rgb( 74, 148,  62)
@@ -123,27 +130,50 @@ static void build_ground(g3d_mesh *m)
     g3d_mesh_quad(m, a, d, c, b, g_pal->dirt);
 }
 
+/* Caja orientada segun el lado del cerco: `alo` es el medio ancho a lo largo
+ * del cerco y `acr` a traves. */
+static void fence_box(g3d_mesh *m, bool along_x, float fixed, float t, float y,
+                      float alo, float hy, float acr, g3d_color col)
+{
+    if (along_x) g3d_mesh_box(m, g3d_v(t, y, fixed), g3d_v(alo, hy, acr), col);
+    else         g3d_mesh_box(m, g3d_v(fixed, y, t), g3d_v(acr, hy, alo), col);
+}
+
 static void build_fence(g3d_mesh *m)
 {
-    /* Cerco completo: enmarca el corral se mire para donde se mire. */
+    /*
+     * Corral segun el diseno de Higgsfield (assets/ref/corral.png): tablones
+     * anchos con el tope recortado y la talla escalonada oscura, travesanos
+     * gruesos que sobrepasan la esquina con la punta suelta, y una faja tejida
+     * atada a un poste por lado.
+     */
     const float S = 6.3f;
     for (int side = 0; side < 4; side++) {
         const bool along_x = (side < 2);
         const float fixed  = (side & 1) ? S : -S;
-        for (int i = -3; i <= 3; i++) {
-            float t = i * 2.05f;
-            g3d_v3 c = along_x ? g3d_v(t, 0.44f, fixed) : g3d_v(fixed, 0.44f, t);
-            g3d_mesh_box(m, c, g3d_v(0.075f, 0.44f, 0.075f), COL_WOOD);
-            /* Puntita mas clara arriba del poste. */
-            g3d_mesh_box(m, g3d_v(c.x, 0.90f, c.z), g3d_v(0.085f, 0.035f, 0.085f),
-                         g3d_color_shade(COL_WOOD, 1.15f));
+
+        for (int i = -2; i <= 2; i++) {
+            const float t = (float)i * 3.15f;
+            /* Tablon principal y el tope angosto que le da el corte del borde. */
+            fence_box(m, along_x, fixed, t, 0.50f, 0.15f, 0.50f, 0.075f, COL_POST);
+            fence_box(m, along_x, fixed, t, 1.045f, 0.115f, 0.045f, 0.062f, COL_POST);
+            /* Talla escalonada: dos tacos oscuros apenas salidos de las caras
+             * anchas, corridos como una escalerita. */
+            fence_box(m, along_x, fixed, t + 0.035f, 0.885f, 0.052f, 0.026f, 0.079f, COL_CARVE);
+            fence_box(m, along_x, fixed, t - 0.035f, 0.815f, 0.052f, 0.026f, 0.079f, COL_CARVE);
         }
+
+        /* La faja tejida, en un poste distinto por lado. */
+        const float bt = (float)((side * 2 + 1) % 5 - 2) * 3.15f;
+        fence_box(m, along_x, fixed, bt, 0.30f, 0.155f, 0.052f, 0.081f, COL_BAND_T);
+        fence_box(m, along_x, fixed, bt, 0.30f, 0.157f, 0.020f, 0.083f, COL_BAND_R);
+
+        /* Dos travesanos gruesos, con un leve desnivel artesanal por lado y la
+         * punta pasada de la esquina como en el diseno. */
         for (int r = 0; r < 2; r++) {
-            float y = r ? 0.66f : 0.38f;
-            g3d_v3 half = along_x ? g3d_v(6.25f, 0.05f, 0.045f)
-                                  : g3d_v(0.045f, 0.05f, 6.25f);
-            g3d_v3 c = along_x ? g3d_v(0.f, y, fixed) : g3d_v(fixed, y, 0.f);
-            g3d_mesh_box(m, c, half, COL_WOOD_D);
+            const float y = (r ? 0.72f : 0.42f) + (float)((side * 3 + r) % 3 - 1) * 0.015f;
+            fence_box(m, along_x, fixed, 0.f, y, 6.55f, 0.065f, 0.05f,
+                      r ? COL_RAIL : COL_RAIL_D);
         }
     }
 }
@@ -275,7 +305,7 @@ bool llama_scene_init(llama_scene *s)
     memset(s, 0, sizeof(*s));
     bool ok = true;
     ok &= g3d_mesh_init(&s->ground, 480, 360);
-    ok &= g3d_mesh_init(&s->fence, 560, 700);
+    ok &= g3d_mesh_init(&s->fence, 800, 1200);
     ok &= g3d_mesh_init(&s->mountains, 480, 620);
     ok &= g3d_mesh_init(&s->tufts, 200, 220);
     ok &= g3d_mesh_init(&s->clouds, 260, 260);

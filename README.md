@@ -37,9 +37,12 @@ mismo código que la placa.
   inclinación mueve suavemente la cámara y el arrastre con el dedo la orbita.
 - **Día y noche** según el reloj RTC: cielo, estrellas, luna y luces cambian.
 - **Estaciones** (hemisferio sur): el paisaje de fondo es un panorama de 360°
-  generado con Higgsfield, uno por estación, y el pasto, la nieve y las flores
-  del corral lo acompañan. Nieve en invierno, hojas en otoño, pétalos en
-  primavera.
+  generado con Higgsfield, uno por estación, y el piso es una textura cenital
+  también de Higgsfield dibujada al estilo "Mode 7" (dos sumas y una lectura
+  por píxel). Nieve en invierno, hojas en otoño, pétalos en primavera.
+- **El corral sigue el diseño de Higgsfield** (`assets/ref/corral.png`):
+  tablones anchos con talla escalonada, travesaños que sobrepasan la esquina y
+  una faja tejida por lado.
 - **Tiempo variable**: viento con ráfagas que empuja las partículas y lluvia
   que se larga sola de vez en cuando (según la estación), tapa el sol y
   agrisa la luz de toda la escena.
@@ -87,7 +90,8 @@ make png        # genera capturas PNG de todas las pantallas en build/shots
 ```
 
 Escenas disponibles: `boot`, `main`, `turn`, `food`, `stats`, `minigame`,
-`sleep`, `sick`, `dead`, `cria`, `night`, `shake`, `estaciones`, `horas`.
+`sleep`, `sick`, `dead`, `cria`, `night`, `shake`, `estaciones`, `horas`,
+`lluvia`, `grilla0`…`grilla3` (una fila de la grilla estación × hora).
 
 ## Cómo está armado
 
@@ -124,10 +128,10 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 - Hoja de sprites: **392 KB** embutidos en el binario y **mapeados desde flash**,
   o sea que no gastan un byte de RAM.
 - Geometría 3D por cuadro: **~620 triángulos** (solo el escenario).
-- Medición de referencia: **0.87 ms por cuadro** en x86-64 con `-O2`, un 23 %
-  menos que dibujando la llama con geometría procedural (1.14 ms). Copiar
-  píxeles sale más barato que rasterizar 920 triángulos. El número sobre la
-  placa todavía no está medido (ver limitaciones).
+- Panorama + baldosas del piso: **2,3 MB** más embutidos en flash, cero RAM.
+- Medición de referencia: **1.39 ms por cuadro** en x86-64 con `-O2` con el
+  piso texturizado a pantalla y el corral nuevo (0.87 ms con el piso de malla).
+  El número sobre la placa todavía no está medido (ver limitaciones).
 - El bucle principal se limita a ~30 fps a propósito, para cuidar la batería.
 
 ### Por qué sprites y no la malla
@@ -177,6 +181,9 @@ de los trabajos y el pipeline de sprites están en [`docs/assets.md`](docs/asset
 | `assets/ref/llama.glb` | modelo original texturizado (29.314 triángulos, textura 2048²) |
 | `assets/llama_sprites.bin` | los 16 ángulos ya renderizados, lo que va a la placa |
 | `assets/ref/llama_lowpoly.bin` | la malla decimada a 758 triángulos, solo como comparación |
+| `assets/ref/pano/*.png` | los cuatro paisajes de estación (→ `assets/pano.bin` con `tools/mkpano.py`) |
+| `assets/ref/ground/*.png` | las cuatro texturas del piso (→ `assets/ground.bin` con `tools/mkground.py`) |
+| `assets/ref/corral.png` | el diseño del cerco que copia `build_fence()` |
 
 El modelo procedural de superficies de revolución sigue en el repositorio
 (`components/llamapet/src/llama_model.c`) y se usa solo/como respaldo si falta la

@@ -15,7 +15,7 @@ Formato del blob:
     count               uint16   estaciones
     size                uint16   lado de la baldosa (potencia de dos)
     span_q8             uint16   unidades de mundo por baldosa, en 8.8
-    reserved            uint16 x3   (el encabezado mide 20 bytes en total)
+    reserved            uint16 x4   (el encabezado mide 20 bytes en total)
     tabla               uint32 * count   offset de cada baldosa
     datos               uint16 * size*size   RGB565 por baldosa
 """
@@ -80,8 +80,8 @@ def main():
 
     tiles = [build_tile(p, args.size, args.border) for p in args.images]
 
-    head = struct.pack('<4sHHHHHHH', b'LGND', 1, len(tiles), args.size,
-                       int(round(args.span * 256.0)), 0, 0, 0)
+    head = struct.pack('<4sHHHHHHHH', b'LGND', 1, len(tiles), args.size,
+                       int(round(args.span * 256.0)), 0, 0, 0, 0)
     assert len(head) == HEAD_SIZE, 'el encabezado tiene que medir GROUND_HEAD bytes'
     data_start = HEAD_SIZE + 4 * len(tiles)
     offsets, blobs, off = [], [], data_start
