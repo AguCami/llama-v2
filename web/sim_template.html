@@ -1,0 +1,374 @@
+<title>Ramona — la llama virtual</title>
+<style>
+  :root {
+    --fondo: #efe7da;          /* pared de taller, calida */
+    --tinta: #33291f;
+    --tinta-suave: #7a6c5a;
+    --carcasa: #2b2622;
+    --carcasa-borde: #4a4038;
+    --acento: #b8503c;         /* terracota de la manta */
+    --acento-2: #3d7a6c;       /* verde azulado del tejido */
+    --tarjeta: #f7f1e6;
+    --linea: #d8ccb8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #201c18;
+      --tinta: #ece4d6;
+      --tinta-suave: #a3937e;
+      --carcasa: #17130f;
+      --carcasa-borde: #3a322a;
+      --tarjeta: #2a251f;
+      --linea: #3d362d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --fondo: #201c18; --tinta: #ece4d6; --tinta-suave: #a3937e;
+    --carcasa: #17130f; --carcasa-borde: #3a322a;
+    --tarjeta: #2a251f; --linea: #3d362d;
+  }
+  :root[data-theme="light"] {
+    --fondo: #efe7da; --tinta: #33291f; --tinta-suave: #7a6c5a;
+    --carcasa: #2b2622; --carcasa-borde: #4a4038;
+    --tarjeta: #f7f1e6; --linea: #d8ccb8;
+  }
+  html { background: var(--fondo); }
+  body {
+    margin: 0;
+    color: var(--tinta);
+    font-family: ui-rounded, "Segoe UI", system-ui, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 22px 14px 40px;
+    box-sizing: border-box;
+  }
+  header { text-align: center; margin-bottom: 16px; }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.65rem;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+  }
+  h1 .guarda { color: var(--acento); }
+  .sub {
+    margin: 0;
+    color: var(--tinta-suave);
+    font-size: 0.9rem;
+  }
+  /* ------------------------------------------------------------ consola */
+  .consola {
+    background: var(--carcasa);
+    border: 1px solid var(--carcasa-borde);
+    border-radius: 26px;
+    padding: 18px 18px 12px;
+    box-shadow: 0 18px 40px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.06);
+    position: relative;
+  }
+  .consola::after {                 /* guarda tejida al pie, como la manta */
+    content: "";
+    display: block;
+    height: 6px;
+    margin: 10px -6px 2px;
+    border-radius: 3px;
+    background: repeating-linear-gradient(90deg,
+      var(--acento) 0 10px, #d9a441 10px 16px, var(--acento-2) 16px 26px, #d9a441 26px 32px);
+    opacity: 0.85;
+  }
+  canvas {
+    display: block;
+    width: min(76vw, 330px);
+    aspect-ratio: 240 / 284;
+    image-rendering: pixelated;
+    border-radius: 12px;
+    background: #000;
+    touch-action: none;
+    cursor: pointer;
+  }
+  .etiqueta {
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    color: #8d7f6d;
+    text-transform: uppercase;
+  }
+  /* ------------------------------------------------------- controles */
+  .panel {
+    margin-top: 18px;
+    width: min(92vw, 430px);
+    background: var(--tarjeta);
+    border: 1px solid var(--linea);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-sizing: border-box;
+  }
+  .panel h2 {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+  .fila { display: flex; flex-wrap: wrap; gap: 8px; }
+  button {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 7px 13px;
+    border-radius: 9px;
+    border: 1px solid var(--linea);
+    background: transparent;
+    color: var(--tinta);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--acento); color: var(--acento); }
+  button:focus-visible { outline: 2px solid var(--acento-2); outline-offset: 2px; }
+  .estado {
+    margin-top: 10px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.78rem;
+    color: var(--tinta-suave);
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .ayuda {
+    margin-top: 14px;
+    width: min(92vw, 430px);
+    color: var(--tinta-suave);
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  .ayuda b { color: var(--tinta); font-weight: 600; }
+  .cargando {
+    position: absolute;
+    inset: 18px 18px 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbbba6;
+    font-size: 0.9rem;
+    pointer-events: none;
+  }
+</style>
+
+<header>
+  <h1>Ramona <span class="guarda">·</span> la llama virtual</h1>
+  <p class="sub">El firmware real del ESP32-S3, compilado a WebAssembly. Todo lo que ves acá corre igual en la placa.</p>
+</header>
+
+<div class="consola">
+  <canvas id="lcd" width="240" height="284" aria-label="Pantalla del juego"></canvas>
+  <div class="cargando" id="cargando">encendiendo…</div>
+  <div class="etiqueta"><span>ESP32-S3 · 1.83″ táctil</span><span id="fps">— fps</span></div>
+</div>
+
+<div class="panel">
+  <h2>Máquina del tiempo</h2>
+  <div class="fila">
+    <button id="b6h">+6 horas</button>
+    <button id="best">+1 estación</button>
+    <button id="breal">tiempo real</button>
+    <button id="bnueva" title="Borra la partida guardada y arranca de cero">criar de nuevo</button>
+  </div>
+  <div class="estado">
+    <span id="e-fecha">—</span>
+    <span id="e-est">—</span>
+  </div>
+</div>
+
+<p class="ayuda">
+  <b>Tocá la pantalla</b> como si fuera la placa: los botones de abajo alimentan,
+  juegan, bañan, duermen y curan; <b>arrastrá</b> sobre el corral para girar la
+  cámara y tocá a Ramona para acariciarla. La partida se guarda sola en este
+  navegador, y el reloj y las estaciones (hemisferio sur) son los de verdad —
+  con la máquina del tiempo podés adelantarlos para ver el atardecer, la noche
+  o la nieve sin esperar.
+</p>
+
+<script>
+"use strict";
+/* Blobs embebidos: el modulo wasm y los mismos assets que van a la flash. */
+const B64 = {
+  wasm:    "@@WASM@@",
+  sprites: "@@SPRITES@@",
+  pano:    "@@PANO@@",
+  ground:  "@@GROUND@@",
+};
+
+function bytesOf(b64) {
+  const s = atob(b64);
+  const a = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a;
+}
+
+/* RGB565 -> RGBA32 con una tabla precalculada (64K entradas). */
+const PAL = new Uint32Array(65536);
+{
+  const little = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+  for (let c = 0; c < 65536; c++) {
+    const r = ((c >> 11) & 31) * 255 / 31 | 0;
+    const g = ((c >> 5) & 63) * 255 / 63 | 0;
+    const b = (c & 31) * 255 / 31 | 0;
+    PAL[c] = little ? (255 << 24) | (b << 16) | (g << 8) | r
+                    : (r << 24) | (g << 16) | (b << 8) | 255;
+  }
+}
+
+let audioCtx = null;
+function js_tone(freq, ms) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = "square";
+  o.frequency.value = freq;
+  g.gain.value = 0.04;
+  o.connect(g).connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + ms / 1000);
+}
+function js_haptic(ms) {
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+
+const $ = (id) => document.getElementById(id);
+const canvas = $("lcd");
+const ctx2d = canvas.getContext("2d");
+const img = ctx2d.createImageData(240, 284);
+const img32 = new Uint32Array(img.data.buffer);
+
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio",
+               "agosto","septiembre","octubre","noviembre","diciembre"];
+const ESTS = ["verano","otoño","invierno","primavera"];
+
+let wasm = null;
+let timeOffset = 0;              /* segundos de la maquina del tiempo */
+let touch = { down: 0, x: 0, y: 0 };
+let tilt = { ax: 0.02, ay: -0.98, az: 0.05 };
+let lastT = 0, fpsAcc = 0, fpsN = 0;
+
+function gameNow() { return Date.now() / 1000 + timeOffset; }
+
+function estacionDe(unix) {
+  const d = new Date(unix * 1000);
+  const m = d.getUTCMonth() + 1;
+  const s = m === 12 || m <= 2 ? 0 : m <= 5 ? 1 : m <= 8 ? 2 : 3;
+  return [d, s];
+}
+
+function pintarEstado() {
+  const [d, s] = estacionDe(gameNow());
+  $("e-fecha").textContent =
+    d.getUTCDate() + " de " + MESES[d.getUTCMonth()] + ", " +
+    String(d.getUTCHours()).padStart(2, "0") + ":" +
+    String(d.getUTCMinutes()).padStart(2, "0") + " UTC";
+  $("e-est").textContent = ESTS[s];
+}
+
+function guardar() {
+  const n = wasm.lp_save_len();
+  if (n <= 0) return;
+  const buf = new Uint8Array(wasm.memory.buffer, wasm.lp_save_buf(), n);
+  let s = "";
+  for (const b of buf) s += String.fromCharCode(b);
+  try { localStorage.setItem("ramona_save", btoa(s)); } catch (e) {}
+}
+
+function cargar() {
+  let b64 = null;
+  try { b64 = localStorage.getItem("ramona_save"); } catch (e) {}
+  if (!b64) return;
+  const bytes = bytesOf(b64);
+  new Uint8Array(wasm.memory.buffer, wasm.lp_save_buf(), bytes.length).set(bytes);
+  wasm.lp_save_set(bytes.length);
+}
+
+function subirAsset(setter, b64) {
+  const bytes = bytesOf(b64);
+  const ptr = wasm.lp_alloc(bytes.length);
+  new Uint8Array(wasm.memory.buffer, ptr, bytes.length).set(bytes);
+  wasm[setter](ptr, bytes.length);
+}
+
+function cuadro(t) {
+  const dt = Math.min((t - lastT) / 1000 || 0.033, 0.1);
+  lastT = t;
+  wasm.lp_frame(gameNow(), dt, touch.down, touch.x, touch.y,
+                tilt.ax, tilt.ay, tilt.az);
+  const fb = new Uint16Array(wasm.memory.buffer, wasm.lp_framebuffer(), 240 * 284);
+  for (let i = 0; i < fb.length; i++) img32[i] = PAL[fb[i]];
+  ctx2d.putImageData(img, 0, 0);
+
+  fpsAcc += dt; fpsN++;
+  if (fpsAcc >= 0.5) {
+    $("fps").textContent = Math.round(fpsN / fpsAcc) + " fps";
+    fpsAcc = 0; fpsN = 0;
+    pintarEstado();
+  }
+  requestAnimationFrame(cuadro);
+}
+
+function coord(ev) {
+  const r = canvas.getBoundingClientRect();
+  touch.x = Math.round((ev.clientX - r.left) / r.width * 240);
+  touch.y = Math.round((ev.clientY - r.top) / r.height * 284);
+}
+canvas.addEventListener("pointerdown", (ev) => {
+  canvas.setPointerCapture(ev.pointerId);
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  }
+  touch.down = 1;
+  coord(ev);
+});
+canvas.addEventListener("pointermove", (ev) => { if (touch.down) coord(ev); });
+const soltar = () => { touch.down = 0; };
+canvas.addEventListener("pointerup", soltar);
+canvas.addEventListener("pointercancel", soltar);
+
+/* Inclinacion del telefono -> acelerometro de la placa (si el navegador deja). */
+window.addEventListener("deviceorientation", (ev) => {
+  if (ev.beta === null || ev.gamma === null) return;
+  const b = ev.beta * Math.PI / 180, g = ev.gamma * Math.PI / 180;
+  tilt.ax = Math.sin(g);
+  tilt.ay = -Math.cos(g) * Math.cos(b);
+  tilt.az = Math.sin(b);
+});
+
+$("b6h").onclick = () => { timeOffset += 6 * 3600; pintarEstado(); };
+$("best").onclick = () => { timeOffset += 91 * 86400; pintarEstado(); };
+$("breal").onclick = () => { timeOffset = 0; pintarEstado(); };
+$("bnueva").onclick = () => {
+  try { localStorage.removeItem("ramona_save"); } catch (e) {}
+  location.reload();
+};
+
+(async function arrancar() {
+  const imports = {
+    env: { js_tone, js_haptic },
+    wasi_snapshot_preview1: {
+      fd_close: () => 0, fd_seek: () => 0, fd_write: () => 0,
+    },
+  };
+  const { instance } = await WebAssembly.instantiate(bytesOf(B64.wasm), imports);
+  wasm = instance.exports;
+  wasm._initialize();
+  subirAsset("lp_set_sprites", B64.sprites);
+  subirAsset("lp_set_pano", B64.pano);
+  subirAsset("lp_set_ground", B64.ground);
+  cargar();
+  if (!wasm.lp_init(gameNow())) {
+    $("cargando").textContent = "no arrancó :(";
+    return;
+  }
+  $("cargando").remove();
+  setInterval(guardar, 5000);
+  pintarEstado();
+  requestAnimationFrame(cuadro);
+})();
+</script>
