@@ -9,6 +9,10 @@ dependencies.lock
 sim/build/
 *.ppm
 
+# python
+__pycache__/
+*.pyc
+
 # editores
 .vscode/
 .idea/
