@@ -126,6 +126,7 @@ struct llama_game {
 
     /* Comportamiento de la llama. */
     float      wander_timer;
+    float      idle_side;        /* de que lado se para respecto de la camara */
     float      wander_target_x, wander_target_z;
     float      action_timer;     /* mientras > 0 manda la animacion de accion */
     llama_anim action_anim;

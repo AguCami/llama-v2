@@ -30,7 +30,7 @@ from PIL import Image
 
 SCREEN_W, SCREEN_H = 240, 284
 FOVY = 0.72
-CAM_DIST, CAM_HEIGHT, CAM_TARGET_Y = 5.3, 1.85, 0.98
+CAM_DIST, CAM_HEIGHT, CAM_TARGET_Y = 4.55, 1.62, 0.88
 
 
 def strip_width():

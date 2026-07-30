@@ -355,14 +355,19 @@ static void behaviour_update(llama_game *g, float dt)
     g->wander_timer -= dt;
     if (g->wander_timer <= 0.f) {
         g->wander_timer = 3.5f + llama_randf() * 6.f;
+        if (llama_randf() < 0.35f) g->idle_side = -g->idle_side;
         if (p->energy > 25.f && p->happiness > 20.f && llama_randf() < 0.6f) {
             g->wander_target_x = (llama_randf() - 0.5f) * 3.2f;
             g->wander_target_z = (llama_randf() - 0.5f) * 2.6f;
         }
     }
     llama_model_set_anim(m, LA_IDLE);
-    /* Mira hacia la camara cuando esta quieta. */
-    float want = g->cam_yaw;
+    /* Se para de tres cuartos respecto de la camara: de frente el bicho se ve
+     * como una astilla y se pierde la manta y la silueta. Cada tanto cambia de
+     * lado para que no quede siempre igual. */
+    float side = ((llama_rand() >> 7) & 1) ? 1.f : -1.f;
+    if (g->idle_side == 0.f) g->idle_side = side;
+    float want = g->cam_yaw + g->idle_side * 0.80f;
     float diff = want - m->heading;
     while (diff > (float)M_PI)  diff -= 2.f * (float)M_PI;
     while (diff < -(float)M_PI) diff += 2.f * (float)M_PI;
@@ -809,9 +814,9 @@ llama_game *llama_game_create(int w, int h)
     }
 
     g->cam_yaw      = 0.f;
-    g->cam_dist     = 5.3f;
-    g->cam_height   = 1.85f;
-    g->cam_target_y = 0.98f;
+    g->cam_dist     = 4.55f;
+    g->cam_height   = 1.62f;
+    g->cam_target_y = 0.88f;
     g->pressed_btn  = -1;
     g->last_time    = now;
     g->battery_pct  = -1;

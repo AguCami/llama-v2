@@ -41,7 +41,7 @@ from render import Renderer, look_at, perspective   # noqa: E402
 
 SCREEN_W, SCREEN_H = 240, 284
 FOV = 0.72
-CAM_DIST, CAM_HEIGHT, CAM_TARGET_Y = 5.3, 1.85, 0.98
+CAM_DIST, CAM_HEIGHT, CAM_TARGET_Y = 4.55, 1.62, 0.88
 LIGHT = np.array([-0.42, 0.80, 0.42])
 LIGHT /= np.linalg.norm(LIGHT)
 
