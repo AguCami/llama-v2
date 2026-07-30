@@ -179,6 +179,18 @@ struct llama_game {
     minigame_state mg;
 };
 
+/* ------------------------------------------------------------------- poses */
+
+/* Orden de las poses en la hoja de sprites (ver POSES en tools/mksprites.py).
+ * Cada una es el modelo original deformado y renderizado aparte, no el mismo
+ * dibujo estirado. */
+enum {
+    POSE_PARADA = 0,
+    POSE_AGACHADA,     /* cuello a media altura */
+    POSE_PASTANDO,     /* hocico en el comedero */
+    POSE_ECHADA        /* patas plegadas, durmiendo */
+};
+
 /* ------------------------------------------------------------------ iconos */
 
 enum {

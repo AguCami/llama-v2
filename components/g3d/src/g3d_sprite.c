@@ -74,8 +74,9 @@ int g3d_sprite_angle_index(const g3d_sprite_set *s, float radians)
 }
 
 void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose,
-                     float ax, float ay, float scale, float scale_y, float shear,
-                     float invw, float tint, g3d_color tint_b, uint8_t tint_a)
+                     float ax, float ay, float scale, float scale_y,
+                     float shear, float invw, float tint,
+                     g3d_color tint_b, uint8_t tint_a)
 {
     if (!s->blob || scale <= 0.f || scale_y <= 0.f) return;
 

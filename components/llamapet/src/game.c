@@ -832,10 +832,16 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
      * los pies y la cizalla mueve el lomo, y con eso el trote, el mordisco y
      * el suenio se leen aunque la foto sea siempre la misma.
      */
+    int pose = POSE_PARADA;
     float sy_s = 1.f, sx_s = 1.f, shear = 0.f;
     switch (m->anim) {
     case LA_IDLE:
         sy_s = 1.f + 0.013f * sinf(m->t * 1.7f);            /* respira */
+        /* Cada tanto baja a pastar un rato, para que la espera tenga vida. */
+        if (fmodf(m->t, 9.5f) < 2.6f) {
+            float u = fmodf(m->t, 9.5f) / 2.6f;
+            pose = (u < 0.22f || u > 0.78f) ? POSE_AGACHADA : POSE_PASTANDO;
+        }
         break;
     case LA_WALK: {
         float ph = m->anim_t * 8.5f;
@@ -845,19 +851,15 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
         break;
     }
     case LA_EAT: {
-        /* Se agacha al comedero y pega mordiscos ritmicos. */
-        float bite = 0.5f - 0.5f * cosf(m->anim_t * 6.2f);
-        sy_s = 0.94f - 0.22f * bite;
-        sx_s = 1.f + 0.07f * bite;
-        float bsx;
-        if (g3d_project(t, &g->ctx, g3d_v(0.f, 0.f, 2.05f), &bsx, NULL, NULL)) {
-            shear = (bsx > sx ? 1.f : -1.f) * 0.10f * bite;  /* hacia el comedero */
-        }
+        /* Baja el cuello al comedero y pega mordiscos: cada pose es geometria
+         * renderizada, asi que el cuello baja de verdad en vez de aplastarse. */
+        float bite = 0.5f - 0.5f * cosf(m->anim_t * 5.2f);
+        pose = bite > 0.62f ? POSE_PASTANDO : POSE_AGACHADA;
         break;
     }
     case LA_SLEEP:
-        sy_s = 0.60f + 0.018f * sinf(m->t * 1.3f);           /* echada, respirando */
-        sx_s = 1.14f;
+        pose = POSE_ECHADA;
+        sy_s = 1.f + 0.015f * sinf(m->t * 1.3f);             /* respira despacio */
         break;
     case LA_HAPPY: {
         float ph = m->anim_t * 8.f;
@@ -867,13 +869,12 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
         break;
     }
     case LA_SICK:
-        sy_s = 0.93f + 0.01f * sinf(m->t * 1.1f);
-        shear = 0.045f;                                      /* caida, sin fuerza */
+        pose = POSE_AGACHADA;                                /* cabeza gacha */
+        shear = 0.04f;                                       /* caida, sin fuerza */
         break;
     case LA_SPIT: {
         float ph = m->anim_t * 9.f;
         shear = ph < 1.6f ? -0.09f * sinf(ph * 1.9f) : 0.14f * sinf((ph - 1.6f) * 2.6f);
-        sy_s = 1.f + 0.05f * sinf(ph * 2.f);
         break;
     }
     case LA_SHEAR:
@@ -881,8 +882,9 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
         sy_s = 1.f + 0.02f * sinf(m->anim_t * 16.f);
         break;
     case LA_DEAD:
-        sy_s = 0.42f;
-        sx_s = 1.28f;
+        pose = POSE_ECHADA;
+        sy_s = 0.72f;
+        sx_s = 1.12f;
         break;
     default:
         break;
@@ -891,8 +893,9 @@ void game_draw_llama(llama_game *g, g3d_target *t, float tint)
     /* Profundidad del plano que pasa por el centro del bicho. */
     float invw = pscale / (g->sprite_ref_scale * g->cam_dist);
     /* scale_y es relativa a la escala en X, asi que se compensa sx_s. */
-    g3d_sprite_draw(t, &g->sprites, angle, 0, sx, sy, scale * sx_s, sy_s / sx_s,
-                    shear, invw, tint, g->ctx.light.tint_color, g->ctx.light.tint_a);
+    g3d_sprite_draw(t, &g->sprites, angle, pose, sx, sy, scale * sx_s, sy_s / sx_s,
+                    shear, invw, tint,
+                    g->ctx.light.tint_color, g->ctx.light.tint_a);
 }
 
 /*

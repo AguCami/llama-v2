@@ -128,6 +128,10 @@ rasterizador) y [`docs/mecanicas.md`](docs/mecanicas.md) (números del juego).
 - Hoja de sprites: **392 KB** embutidos en el binario y **mapeados desde flash**,
   o sea que no gastan un byte de RAM.
 - Geometría 3D por cuadro: **~620 triángulos** (solo el escenario).
+- Hoja de sprites: **4 poses × 16 ángulos = 1,9 MB**. Las poses (parada,
+  agachada, pastando, echada) salen de deformar la geometría del GLB antes de
+  renderizar — doblar el cuello sobre el pixel ya renderizado hunde la cabeza
+  dentro del cuerpo en vez de bajarla.
 - Panorama + baldosas del piso: **2,3 MB** más embutidos en flash, cero RAM.
 - Medición de referencia: **1.39 ms por cuadro** en x86-64 con `-O2` con el
   piso texturizado a pantalla y el corral nuevo (0.87 ms con el piso de malla).

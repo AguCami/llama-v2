@@ -54,6 +54,82 @@ def rot_y(deg):
     return m
 
 
+# --------------------------------------------------------------------- poses
+#
+# El sprite es una foto, asi que aplastarlo en 2D nunca va a parecer un cuello
+# que baja: la cabeza se hunde en el cuerpo. Las poses se hacen deformando la
+# geometria antes de renderizar, que es lo unico que da la silueta correcta.
+#
+# Medido sobre la malla ya canonica (altura 1,70; mira hacia +Z): el cuello es
+# la columna angosta entre y=0,90 y y=1,10 alrededor de z=0,45, la cabeza va de
+# ahi para arriba y el hocico llega a z=0,78. El vientre arranca en y=0,50.
+
+NECK_Y, NECK_Z, NECK_LEN = 0.88, 0.45, 0.28
+BELLY_Y = 0.50
+
+
+def bend_neck(P, N, theta):
+    """Baja cuello y cabeza girando alrededor de la base del cuello.
+
+    `theta` en radianes: 0 deja la llama erguida, valores positivos bajan el
+    hocico hacia adelante. El giro entra de a poco a lo largo del cuello (asi
+    el hombro no se quiebra) y de la cabeza para arriba es rigido, que es como
+    baja de verdad: el cuello barre, no se enrosca.
+    """
+    if abs(theta) < 1e-4:
+        return P, N
+    P, N = P.copy(), N.copy()
+    h = P[:, 1] - NECK_Y
+    up = h > 0.0
+    if not up.any():
+        return P, N
+
+    u = np.clip(h[up] / NECK_LEN, 0.0, 1.0)
+    phi = theta * (u * u * (3.0 - 2.0 * u))    # suavizado en la base
+    c, sn = np.cos(phi), np.sin(phi)
+
+    dy = h[up]
+    dz = P[up, 2] - NECK_Z
+    P[up, 2] = NECK_Z + dz * c + dy * sn
+    P[up, 1] = NECK_Y - dz * sn + dy * c
+
+    ny, nz = N[up, 1].copy(), N[up, 2].copy()
+    N[up, 1] = ny * c - nz * sn
+    N[up, 2] = ny * sn + nz * c
+    return P, N
+
+
+def cush(P, N, drop=0.78):
+    """Postura echada: pliega las patas y hunde el cuerpo, como duerme de veras."""
+    P = P.copy()
+    legs = P[:, 1] < BELLY_Y
+    P[legs, 1] *= (1.0 - drop)
+    P[~legs, 1] -= BELLY_Y * drop
+    return P, N
+
+
+def pose_grazing(P, N, t):
+    """Pastando: `t` va de 0 (erguida) a 1 (hocico a la altura del comedero).
+
+    Con 2,0 rad el hocico queda en y=0,42 adelantado a z=0,68, justo sobre el
+    comedero al que camina la llama.
+    """
+    return bend_neck(P, N, 2.0 * t)
+
+
+def pose_resting(P, N):
+    P, N = cush(P, N)
+    return bend_neck(P, N, 0.30)          # cabeza apenas recogida
+
+
+POSES = [
+    ("parada",   lambda P, N: (P, N)),
+    ("agachada", lambda P, N: pose_grazing(P, N, 0.5)),
+    ("pastando", lambda P, N: pose_grazing(P, N, 1.0)),
+    ("echada",   pose_resting),
+]
+
+
 def canonical(P, N, height):
     """Y arriba, patas en y=0, centrado en X/Z y escalado a `height` unidades."""
     P = P.copy()
@@ -96,31 +172,34 @@ def main():
     rnd = Renderer(SCREEN_W, SCREEN_H, ss=args.ss)
     sprites = []
     t0 = time.time()
-    for i in range(args.angles):
-        deg = 360.0 * i / args.angles
-        M = rot_y(deg)
-        Pw = P @ M[:3, :3].T
-        Nw = N @ M[:3, :3].T
-        color, alpha = rnd.render(Pw, Nw, UV, F, tex, view_proj, LIGHT)
+    # La tabla va ordenada pose por pose: entrada = pose * angles + angulo.
+    for pi, (pname, pfn) in enumerate(POSES):
+        Pp, Np = pfn(P, N)
+        for i in range(args.angles):
+            deg = 360.0 * i / args.angles
+            R = rot_y(deg)
+            Pw = Pp @ R[:3, :3].T
+            Nw = Np @ R[:3, :3].T
+            color, alpha = rnd.render(Pw, Nw, UV, F, tex, view_proj, LIGHT)
 
-        ys, xs = np.nonzero(alpha > 0.004)
-        if len(xs) == 0:
-            raise RuntimeError('el angulo %d salio vacio' % i)
-        x0, x1 = xs.min(), xs.max() + 1
-        y0, y1 = ys.min(), ys.max() + 1
-        sprites.append({
-            'ox': int(x0 - round(anchor_x)),
-            'oy': int(y0 - round(anchor_y)),
-            'w': int(x1 - x0), 'h': int(y1 - y0),
-            'color': color[y0:y1, x0:x1],
-            'alpha': alpha[y0:y1, x0:x1],
-        })
-        print('  angulo %3d deg -> recorte %dx%d en (%+d,%+d)   [%.1fs]'
-              % (deg, x1 - x0, y1 - y0, x0 - round(anchor_x), y0 - round(anchor_y),
-                 time.time() - t0))
+            ys, xs = np.nonzero(alpha > 0.004)
+            if len(xs) == 0:
+                raise RuntimeError('%s / angulo %d salio vacio' % (pname, i))
+            x0, x1 = xs.min(), xs.max() + 1
+            y0, y1 = ys.min(), ys.max() + 1
+            sprites.append({
+                'ox': int(x0 - round(anchor_x)),
+                'oy': int(y0 - round(anchor_y)),
+                'w': int(x1 - x0), 'h': int(y1 - y0),
+                'color': color[y0:y1, x0:x1],
+                'alpha': alpha[y0:y1, x0:x1],
+            })
+        print('  pose %-9s lista (%d angulos)   [%.0fs]'
+              % (pname, args.angles, time.time() - t0))
 
-    write_blob(args.out, sprites, anchor_x, anchor_y, args.angles, args.height)
-    write_preview(args.preview, sprites)
+    write_blob(args.out, sprites, anchor_x, anchor_y, args.angles, len(POSES),
+               args.height)
+    write_preview(args.preview, sprites, args.angles)
 
 
 def to_rgb565(color):
@@ -129,7 +208,7 @@ def to_rgb565(color):
             (q[..., 2] >> 3)).astype('<u2')
 
 
-def write_blob(path, sprites, ax, ay, angles, height):
+def write_blob(path, sprites, ax, ay, angles, poses, height):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     table, blobs = [], []
     offset = 0
@@ -144,7 +223,7 @@ def write_blob(path, sprites, ax, ay, angles, height):
         blobs.append(data)
         offset += len(data)
 
-    head = struct.pack('<4sHHHHhhf', b'LSPR', 1, angles, 1, 0,
+    head = struct.pack('<4sHHHHhhf', b'LSPR', 1, angles, poses, 0,
                        int(round(ax)), int(round(ay)), float(height))
     tbl = b''.join(struct.pack('<hhHHI', *e) for e in table)
     data_start = len(head) + len(tbl)
@@ -156,10 +235,9 @@ def write_blob(path, sprites, ax, ay, angles, height):
     print('escrito %s: %d sprites, %.0f KB' % (path, len(sprites), total / 1024))
 
 
-def write_preview(path, sprites):
+def write_preview(path, sprites, cols=8):
     from PIL import Image
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    cols = 8
     rows = (len(sprites) + cols - 1) // cols
     cw = max(s['w'] for s in sprites) + 4
     ch = max(s['h'] for s in sprites) + 4

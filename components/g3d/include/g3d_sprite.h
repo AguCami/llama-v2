@@ -43,14 +43,19 @@ bool g3d_sprite_size(const g3d_sprite_set *s, int angle, int pose,
  * `tint_b`/`tint_a` mezclan el color de ambiente de la hora, igual que en el
  * panorama y en g3d_light.
  *
- * `scale_y` y `shear` son los canales de animacion de titere: la escala
- * vertical aplasta o estira alrededor del anclaje (los pies quedan plantados)
- * y la cizalla corre la parte de arriba en X como fraccion del alto (0.1 =
- * el 10 % del alto hacia la derecha), para inclinarse o trotar.
+ * `scale_y` y `shear` son los canales de titere, para el rebote del trote, la
+ * respiracion y los saltos: scale_y aplasta o estira alrededor del anclaje
+ * (los pies quedan plantados) y shear corre la parte de arriba en X como
+ * fraccion del alto (0.1 = el 10 % del alto hacia la derecha).
+ *
+ * Agachar el cuello NO se hace con estos canales: deformar una foto hunde la
+ * cabeza dentro del cuerpo en vez de bajarla. Para eso estan las poses, que
+ * salen de deformar la geometria antes de renderizar (ver tools/mksprites.py).
  */
 void g3d_sprite_draw(g3d_target *t, const g3d_sprite_set *s, int angle, int pose,
-                     float ax, float ay, float scale, float scale_y, float shear,
-                     float invw, float tint, g3d_color tint_b, uint8_t tint_a);
+                     float ax, float ay, float scale, float scale_y,
+                     float shear, float invw, float tint,
+                     g3d_color tint_b, uint8_t tint_a);
 
 /* Indice de angulo mas cercano a `radians` (0 = mirando a +Z). */
 int g3d_sprite_angle_index(const g3d_sprite_set *s, float radians);
